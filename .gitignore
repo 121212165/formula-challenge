@@ -1,2 +1,10 @@
-skills/
-node_modules/
+node_modules
+.next
+.env.local
+.env.production
+*.log
+dist
+coverage
+.vscode
+.idea
+.DS_Store
