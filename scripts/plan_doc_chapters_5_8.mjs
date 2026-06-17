@@ -29,12 +29,15 @@ export function chapter5DataModel() {
     ),
 
     h3('5.2.2 formulas（方剂主表）'),
+    p('方剂主表的核心设计点是处理「同名异方」问题——中医方剂中存在大量同名但组成、出处不同的方剂，例如《伤寒论》的「四逆汤」与后世变方「四逆汤」组成可能不同，《温病条辨》的「银翘散」与民间俗称的「银翘散」也可能存在差异。因此方剂表的唯一性不能仅由方名决定，必须引入「出处」字段构成复合唯一键。'),
     tableCaption('表 5-2  formulas 字段设计'),
     table(
       ['字段名', '类型', '说明', '索引'],
       [
-        ['id', 'String (PK)', '方剂 ID（拼音或 slug，如「ma_huang_tang」）', '主键'],
-        ['name', 'String', '方剂名称（如「麻黄汤」）', '唯一索引'],
+        ['id', 'String (PK)', '方剂 ID（slug 形式，如「ma_huang_tang_shanghanlun」）', '主键'],
+        ['name', 'String', '方剂名称（如「麻黄汤」），不唯一', '普通索引（非唯一）'],
+        ['source', 'String', '出处（如「《伤寒论》」「《温病条辨》」「《太平惠民和剂局方》」）', '复合唯一索引 (name, source)'],
+        ['alias', 'String[]', '别名数组（如「四逆散」可含「四逆汤」别名，便于搜索）', 'GIN 索引'],
         ['category_id', 'Int (FK)', '所属分类 ID', '外键索引'],
         ['mnemonic', 'String', '压缩字块（如「妈跪着炒」）', '—'],
         ['mnemonic_explanation', 'String', '压缩字块解释（如「妈(麻黄)+跪(桂枝)…」）', '—'],
@@ -51,6 +54,7 @@ export function chapter5DataModel() {
       ],
       [22, 16, 50, 12]
     ),
+    p('同名异方的处理策略分两种情况。其一，常见方剂（如「四逆汤」「理中汤」「桂枝汤」）若不同出处组成相同，合并为一条，source 字段填最早出处，alias 字段记录其他出处名；若不同出处组成不同，作为独立条目存储，display 时加出处后缀以示区分（如「四逆汤（《伤寒论》）」与「四逆汤（《局方》）」）。其二，用户搜索时若输入「四逆汤」，系统返回所有同名方剂列表供用户选择，避免歧义。这一设计确保方剂数据的学术严谨性，也符合考研方剂学的教学惯例。'),
 
     h3('5.2.3 users（用户表）'),
     p('用户表由 NextAuth.js 接管，Prisma 中只需声明模型用于关联查询，认证逻辑不写入业务代码。核心字段包括：id、email、name、password_hash（由 NextAuth 管理）、study_stage（用户当前学习阶段，枚举值 newbie/intensive/sprint/final）、daily_goal（每日学习目标，默认 10 首）、created_at。study_stage 字段是 AI 每日推荐的关键输入，可由用户手动切换或由系统根据学习时长自动判断。'),
@@ -281,22 +285,18 @@ export function chapter8API() {
     table(
       ['方法', '路径', '说明', '请求体', '响应'],
       [
-        ['POST', '/api/ai/explain', 'AI 讲解助手（流式）', '{formula_id, question, conversation_id}', 'SSE 流式文本'],
-        ['POST', '/api/ai/contrast', 'AI 易混对比', '{formula_a, formula_b}', '对比 JSON'],
         ['POST', '/api/ai/asr-check', 'ASR 背诵评分', '{formula_id, transcript}', '评分 JSON'],
         ['POST', '/api/ai/daily-recommend', '生成每日推荐（内部）', '{user_id}', '推荐方剂 + 理由'],
       ],
       [10, 28, 22, 22, 18]
     ),
+    p('AI 讲解助手、错题复盘、易混对比三项 AI 能力已从 MVP 范围移至 V2 阶段（详见第 9 章 9.1 节），对应的 API 端点（/api/ai/explain、/api/ai/contrast）暂不在 MVP 实现。V2 阶段补回时，讲解助手将采用 SSE 流式响应，错题复盘与易混对比采用 JSON 一次性返回。'),
 
     h3('8.2.4 定时任务 API'),
     p('Vercel Cron 每日凌晨 3 点（UTC+8）调用 /api/cron/daily-plan，为所有活跃用户（最近 7 天有登录）预生成当日学习计划。该端点使用 CRON_SECRET 环境变量鉴权，仅 Vercel Cron 可调用。预生成的计划写入 user_daily_plans 表，用户打开今日学习主页时直接读取，无需实时 AI 调用，保证响应速度。'),
 
     h2('8.3 错误处理与限流'),
     p(`所有 API 使用统一的错误处理中间件，捕获异常后返回 { code: 4xx/5xx, message: "错误描述" }。AI API 额外加入限流：每用户每分钟最多 10 次 AI 调用，每日最多 100 次，超出返回 429。限流基于 user_id + 时间窗口在内存中计数（Vercel Edge Runtime 的 KV 也可用），MVP 阶段不需要 Redis。`),
-    p('AI API 的超时设置为 30 秒（DeepSeek V4 通常 3 至 8 秒返回，留足余量），超时后返回 504 并提示用户重试。流式响应（SSE）的讲解助手超时单独设置为 60 秒，避免长回答被截断。所有 AI 调用失败都有降级策略：讲解助手失败显示「AI 暂不可用，请稍后重试」；错题复盘失败显示静态的「正确答案 + 简单提示」；每日推荐失败回退到纯 FSRS 推荐（不加 AI 个性化）。'),
-
-    h2('8.4 AI 端点的流式响应'),
-    p('AI 讲解助手必须实现流式响应（SSE），否则用户等待感过强。实现方式是 Route Handler 返回一个 ReadableStream，逐 chunk 推送 DeepSeek 的流式响应给前端。前端使用 EventSource 或 fetch + ReadableStream 接收，逐字渲染。其他 AI 端点（错题复盘、易混对比、ASR 评分）响应较快（3 秒内），不需要流式，直接 JSON 返回即可。'),
+    p('AI API 的超时设置为 30 秒（DeepSeek V4 通常 3 至 8 秒返回，留足余量），超时后返回 504 并提示用户重试。所有 AI 调用失败都有降级策略：ASR 评分失败回退到「请重试或改用文本输入」提示；每日推荐失败回退到纯 FSRS 推荐（不加 AI 个性化）。V2 阶段补回讲解助手后，将单独实现 SSE 流式响应与 60 秒超时配置。'),
   ];
 }
