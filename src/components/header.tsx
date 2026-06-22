@@ -19,18 +19,13 @@ export function Header() {
           {session?.user ? (
             <>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/?view=categories">
+                <Link href="/categories">
                   <Calendar className="mr-1 h-4 w-4" /> 分类
                 </Link>
               </Button>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/?view=search">
+                <Link href="/search">
                   <Search className="mr-1 h-4 w-4" /> 搜索
-                </Link>
-              </Button>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/?view=profile">
-                  <Trophy className="mr-1 h-4 w-4" /> 我的
                 </Link>
               </Button>
             </>
