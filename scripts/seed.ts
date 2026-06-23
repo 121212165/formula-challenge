@@ -1,5 +1,5 @@
-// 把 data/formulas_parsed.json 导入数据库
-// 用法: bun run db:seed
+// 把 data/formulas_enriched.json 导入数据库（优先）或 data/formulas_parsed.json
+// 用法: npx tsx scripts/seed.ts
 import { db } from "../src/lib/db";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -14,7 +14,7 @@ interface ParsedFormula {
   mnemonic_explanation?: string;
   traditional_mnemonic?: string;
   traditional_mnemonic_explanation?: string;
-  ingredients?: string[];
+  ingredients?: string[] | string;
   functions?: string;
   indications?: string;
   level?: string;
@@ -76,10 +76,17 @@ async function main() {
     });
   }
 
-  // 2. 读方剂数据
-  const dataPath = resolve(process.cwd(), "data/formulas_parsed.json");
-  const formulas: ParsedFormula[] = JSON.parse(readFileSync(dataPath, "utf-8"));
-  console.log(`  → 读取到 ${formulas.length} 首方剂`);
+  // 2. 读方剂数据（优先使用 enriched 版本）
+  const enrichedPath = resolve(process.cwd(), "data/formulas_enriched.json");
+  const parsedPath = resolve(process.cwd(), "data/formulas_parsed.json");
+  let formulas: ParsedFormula[];
+  try {
+    formulas = JSON.parse(readFileSync(enrichedPath, "utf-8"));
+    console.log(`  → 读取到 ${formulas.length} 首方剂（enriched）`);
+  } catch {
+    formulas = JSON.parse(readFileSync(parsedPath, "utf-8"));
+    console.log(`  → 读取到 ${formulas.length} 首方剂（parsed）`);
+  }
 
   // 3. 合并已有 sample 数据
   const samplePath = resolve(process.cwd(), "data/formulas_sample.json");
@@ -120,7 +127,11 @@ async function main() {
       mnemonicExplanation: enriched?.mnemonic_explanation ?? f.mnemonic_explanation ?? "",
       traditionalMnemonic: enriched?.traditional_mnemonic ?? f.traditional_mnemonic ?? "",
       traditionalMnemonicExplanation: enriched?.traditional_mnemonic_explanation ?? f.traditional_mnemonic_explanation ?? "",
-      ingredients: JSON.stringify(enriched?.ingredients ?? []),
+      ingredients: Array.isArray(enriched?.ingredients ?? f.ingredients)
+        ? JSON.stringify(enriched?.ingredients ?? f.ingredients)
+        : typeof (enriched?.ingredients ?? f.ingredients) === 'string'
+          ? JSON.stringify([(enriched?.ingredients ?? f.ingredients)])
+          : JSON.stringify([]),
       functions: enriched?.functions ?? f.functions ?? "",
       indications: enriched?.indications ?? f.indications ?? "",
       trigger: f.trigger,
