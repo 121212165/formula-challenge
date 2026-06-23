@@ -8,6 +8,17 @@ doc = docx.Document(r'C:\Users\lenovo\Desktop\文档\（已压缩）方剂学.do
 text = '\n'.join([p.text for p in doc.paragraphs if p.text.strip()])
 lines = text.split('\n')
 
+def clean_name(name):
+    name = name.strip()
+    name = name.replace('荡', '汤').replace('场', '汤')
+    name = re.sub(r'\s+', '', name)  # Remove spaces
+    name = name.replace('(', '（').replace(')', '）')
+    # Extract main name before parentheses
+    match = re.match(r'^([^（]+)', name)
+    if match:
+        return match.group(1)
+    return name
+
 formulas = []
 for i, line in enumerate(lines):
     if '【组成】' in line:
@@ -19,6 +30,9 @@ for i, line in enumerate(lines):
             name = lines[i-1].strip() if i >= 1 else ''
         if not name or len(name) > 15 or name.startswith('《'):
             continue
+        
+        # Clean name
+        name = clean_name(name)
         
         comp = line.replace('【组成】', '').strip()
         func = ''
