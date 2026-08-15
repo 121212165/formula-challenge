@@ -72,6 +72,7 @@ function makeReq(body: any, headers: Record<string, string> = {}): Request {
 beforeEach(() => {
   resetDb();
   vi.clearAllMocks();
+  process.env.CRON_SECRET = "test-cron-secret";
   vi.mocked(isDeepSeekConfigured).mockReturnValue(false);
   mockSession("user-1");
   setupUser("user-1");
@@ -82,6 +83,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  delete process.env.CRON_SECRET;
   vi.restoreAllMocks();
 });
 

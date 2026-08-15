@@ -73,10 +73,7 @@ export function TodayHome({ plan, stats }: Props) {
     }
   }
 
-  /** 「查看错题本」按钮：占位跳转 */
-  function handleErrors() {
-    router.push("/?view=errors");
-  }
+  /** 「查看错题本」入口暂未实现,已移除占位跳转(避免死链) */
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -182,15 +179,7 @@ export function TodayHome({ plan, stats }: Props) {
             : "一键开始今日学习"}
         </Button>
 
-        {/* 错题入口（占位，后续连接错题本） */}
-        <Button
-          size="lg"
-          variant="outline"
-          className="w-full"
-          onClick={handleErrors}
-        >
-          查看错题本
-        </Button>
+        {/* 错题本入口（暂未开放,后续版本实现） */}
       </main>
     </div>
   );

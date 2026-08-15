@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
+import { rateLimit, clientIp, sweepBuckets } from "@/lib/rate-limit";
 
 const registerSchema = z.object({
   email: z.string().email("请输入有效邮箱"),
@@ -11,6 +12,15 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // 限流:同一 IP 每小时最多 10 次注册,防止批量注册
+    sweepBuckets();
+    if (!rateLimit(`register:${clientIp(req)}`, 10, 3600_000)) {
+      return NextResponse.json(
+        { error: "操作过于频繁,请稍后再试" },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const parsed = registerSchema.safeParse(body);
     if (!parsed.success) {
