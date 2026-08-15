@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
-import { BookOpen, Calendar, Search, Trophy, User as UserIcon } from "lucide-react";
+import { signOut, useSession } from "next-auth/react";
+import { BookOpen, Calendar, LogOut, Search, Trophy, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
@@ -27,6 +27,14 @@ export function Header() {
                 <Link href="/search">
                   <Search className="mr-1 h-4 w-4" /> 搜索
                 </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: "/" })}
+                aria-label="退出登录"
+              >
+                <LogOut className="mr-1 h-4 w-4" /> 退出
               </Button>
             </>
           ) : (
