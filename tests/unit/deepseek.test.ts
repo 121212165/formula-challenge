@@ -11,6 +11,7 @@ beforeEach(() => {
 afterEach(() => {
   global.fetch = originalFetch;
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("isDeepSeekConfigured", () => {
@@ -23,14 +24,51 @@ describe("isDeepSeekConfigured", () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "sk-test");
     expect(isDeepSeekConfigured()).toBe(true);
   });
+
+  it("STEP_API_KEY 设置时返回 true(StepFun provider)", () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    vi.stubEnv("STEP_API_KEY", "step-key-test");
+    expect(isDeepSeekConfigured()).toBe(true);
+  });
 });
 
 describe("callDeepSeek", () => {
-  it("DEEPSEEK_API_KEY 为空时抛出特定错误", async () => {
+  it("无任何 key 时抛出特定错误", async () => {
     vi.stubEnv("DEEPSEEK_API_KEY", "");
+    vi.stubEnv("STEP_API_KEY", "");
     await expect(
       callDeepSeek([{ role: "user", content: "hi" }])
-    ).rejects.toThrow("DEEPSEEK_API_KEY not configured");
+    ).rejects.toThrow("LLM API not configured");
+  });
+
+  it("StepFun provider:使用 step_plan/v1 端点和 step-3.7-flash", async () => {
+    vi.stubEnv("DEEPSEEK_API_KEY", "");
+    vi.stubEnv("STEP_API_KEY", "step-key");
+    vi.stubEnv("STEP_BASE_URL", "https://api.stepfun.com/step_plan/v1");
+    vi.stubEnv("STEP_MODEL", "step-3.7-flash");
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          choices: [{ message: { content: "hello" } }],
+          usage: { total_tokens: 7 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    global.fetch = fetchMock as unknown as typeof fetch;
+
+    const result = await callDeepSeek([{ role: "user", content: "hi" }]);
+    expect(result.provider).toBe("stepfun");
+    expect(result.content).toBe("hello");
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://api.stepfun.com/step_plan/v1/chat/completions");
+    const body = JSON.parse((init as RequestInit).body as string);
+    expect(body.model).toBe("step-3.7-flash");
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: "Bearer step-key",
+    });
   });
 
   it("正常调用时使用正确的 URL 和 body", async () => {
@@ -116,7 +154,7 @@ describe("callDeepSeek", () => {
     ) as unknown as typeof fetch;
 
     await expect(callDeepSeek([{ role: "user", content: "x" }])).rejects.toThrow(
-      /DeepSeek API error: 429/
+      "LLM API error (deepseek): 429"
     );
   });
 
@@ -127,7 +165,7 @@ describe("callDeepSeek", () => {
     ) as unknown as typeof fetch;
 
     await expect(callDeepSeek([{ role: "user", content: "x" }])).rejects.toThrow(
-      /DeepSeek API error: 500/
+      "LLM API error (deepseek): 500"
     );
   });
 
