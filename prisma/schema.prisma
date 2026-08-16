@@ -51,6 +51,82 @@ model Formula {
   @@map("formulas")
 }
 
+// ==================== 中药表(Phase 1 新增,2026-08) ====================
+
+model HerbCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  herbs       Herb[]
+
+  @@map("herb_categories")
+}
+
+model Herb {
+  id                 String   @id // 形如 h_xxx,与方剂 c_xxx / 腧穴 a_xxx 前缀区分
+  name               String
+  source             String   @default("") // 数据来源标注,如"《中药学》第十版(供参考)"
+  alias              String   @default("[]")
+  categoryId         Int
+  property           String   @default("") // 性味(如"辛温")
+  meridian           String   @default("") // 归经(如"肺、膀胱")
+  functions          String   @default("") // 功效
+  indications        String   @default("") // 主治
+  usage              String   @default("") // 用法用量
+  contraindications  String   @default("") // 禁忌
+  compatibility      String   @default("") // 配伍
+  mnemonic           String   @default("") // 口诀(如"麻黄辛温,入肺膀胱")
+  mnemonicExplanation String  @default("")
+  level              String   @default("二类")
+  sortOrder          Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  category           HerbCategory @relation(fields: [categoryId], references: [id])
+
+  @@unique([name, source])
+  @@index([categoryId])
+  @@index([level])
+  @@map("herbs")
+}
+
+// ==================== 针灸表(Phase 2 新增,2026-08) ====================
+
+model Meridian {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // 如"手阳明大肠经"
+  code        String   @default("") // 国际代码,如 LI
+  description String   @default("")
+  sortOrder   Int      @default(0)
+  acupoints   Acupoint[]
+
+  @@map("meridians")
+}
+
+model Acupoint {
+  id               String   @id // 形如 a_xxx
+  name             String
+  pinyin           String   @default("")
+  code             String   @default("") // 国际代码,如 LI4
+  meridianId       Int
+  location         String   @default("") // 定位
+  indications      String   @default("") // 主治
+  method           String   @default("") // 刺灸法
+  special          String   @default("") // 特定穴属性(原络郄会等)
+  caution          String   @default("") // 禁忌
+  mnemonic         String   @default("") // 歌诀
+  mnemonicExplanation String @default("")
+  level            String   @default("二类")
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  meridian         Meridian @relation(fields: [meridianId], references: [id])
+
+  @@unique([code])
+  @@index([meridianId])
+  @@map("acupoints")
+}
+
 // ==================== 用户表 ====================
 
 model User {
@@ -77,7 +153,8 @@ model User {
 model UserMastery {
   id              Int      @id @default(autoincrement())
   userId          String
-  formulaId       String
+  subject         String   @default("formula") // formula | herb | acupoint(2026-08 多科目扩展)
+  formulaId       String   // 语义 = 条目 id(方剂 c_xxx / 中药 h_xxx / 腧穴 a_xxx,前缀区分)
   // FSRS 参数
   stability       Float    @default(0)
   difficulty      Float    @default(0)
@@ -92,15 +169,16 @@ model UserMastery {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   formula         Formula  @relation(fields: [formulaId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, formulaId])
-  @@index([userId, dueDate])
+  @@unique([userId, subject, formulaId])
+  @@index([userId, subject, dueDate])
   @@map("user_mastery")
 }
 
 model AnswerLog {
   id                Int      @id @default(autoincrement())
   userId            String
-  formulaId         String
+  subject           String   @default("formula") // formula | herb | acupoint
+  formulaId         String   // 语义 = 条目 id(前缀区分科目)
   mode              String   // learn | quiz | recite | asr
   questionType      String   // ingredients | mnemonic | functions | indications
   userAnswer        String   @default("")
@@ -114,7 +192,7 @@ model AnswerLog {
   user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   formula           Formula  @relation(fields: [formulaId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt])
+  @@index([userId, subject, createdAt])
   @@index([formulaId])
   @@map("user_answer_logs")
 }
@@ -122,6 +200,7 @@ model AnswerLog {
 model StudySession {
   id              Int      @id @default(autoincrement())
   userId          String
+  subject         String   @default("formula") // 会话级科目维度
   startedAt       DateTime @default(now())
   endedAt         DateTime?
   durationSeconds Int      @default(0)
@@ -170,6 +249,7 @@ model DailyPlan {
 model AiConversation {
   id            Int      @id @default(autoincrement())
   userId        String
+  subject       String   @default("formula") // formula | herb | acupoint(激活死表,2026-08)
   formulaId     String?
   messages      String   @default("[]") // JSON 数组
   messageCount  Int      @default(0)
@@ -179,6 +259,6 @@ model AiConversation {
   updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId, createdAt])
+  @@index([userId, subject, createdAt])
   @@map("ai_conversations")
 }
