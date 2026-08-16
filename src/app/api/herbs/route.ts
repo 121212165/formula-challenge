@@ -2,6 +2,7 @@
 // Phase 1:subject=herb 数据源(与 /api/formulas 平行)
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 import { validItemId } from "@/lib/subject";
 
 export async function GET(req: Request) {
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
         categoryName: h.category?.name,
       }));
 
-    return NextResponse.json({ herbs: result });
+    return NextResponse.json({ herbs: result }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[herbs] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });

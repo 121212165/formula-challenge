@@ -2,6 +2,7 @@
 // Phase 2:subject=acupoint 数据源(与 /api/herbs 平行)
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 import { validItemId } from "@/lib/subject";
 
 export async function GET(req: Request) {
@@ -47,7 +48,7 @@ export async function GET(req: Request) {
         level: a.level,
       }));
 
-    return NextResponse.json({ acupoints: result });
+    return NextResponse.json({ acupoints: result }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[acupoints] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });

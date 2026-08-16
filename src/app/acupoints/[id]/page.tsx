@@ -5,7 +5,13 @@ import { db } from "@/lib/db";
 import { AcupointDetail } from "@/components/acupoint-detail";
 import { validItemId } from "@/lib/subject";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR:种子数据低频变更,1h 增量再验证(众包合入时 revalidatePath 主动失效)
+
+// ISR 预渲染全部详情路径
+export async function generateStaticParams() {
+  const acupoints = await db.acupoint.findMany({ select: { id: true } });
+  return acupoints.map((a) => ({ id: a.id }));
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

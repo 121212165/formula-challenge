@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+
 vi.mock("@/lib/db", () => {
   const tables: Record<string, Map<string, any>> = {
     contentSubmission: new Map(),

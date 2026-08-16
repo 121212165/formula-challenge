@@ -5,7 +5,13 @@ import { db } from "@/lib/db";
 import { FormulaDetail } from "@/components/formula-detail";
 import type { Formula } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR:种子数据低频变更,1h 增量再验证(众包合入时 revalidatePath 主动失效)
+
+// ISR 预渲染全部详情路径
+export async function generateStaticParams() {
+  const formulas = await db.formula.findMany({ select: { id: true } });
+  return formulas.map((f) => ({ id: f.id }));
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

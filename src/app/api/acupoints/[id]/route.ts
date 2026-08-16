@@ -2,6 +2,7 @@
 // Phase 2:subject=acupoint 详情(定位/主治/刺灸法/特定穴/禁忌/口诀)
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 import { validItemId } from "@/lib/subject";
 
 export async function GET(
@@ -40,7 +41,7 @@ export async function GET(
       mnemonic: acupoint.mnemonic,
       mnemonicExplanation: acupoint.mnemonicExplanation,
       level: acupoint.level,
-    });
+    }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[acupoint-detail] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });

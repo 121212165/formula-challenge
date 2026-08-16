@@ -1,6 +1,7 @@
 // /api/herbs/[id] GET - 中药详情
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 import { validItemId } from "@/lib/subject";
 
 export async function GET(
@@ -40,7 +41,7 @@ export async function GET(
       level: herb.level,
       categoryId: herb.categoryId,
       categoryName: herb.category?.name,
-    });
+    }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[herb-detail] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });
