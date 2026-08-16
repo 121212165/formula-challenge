@@ -13,6 +13,7 @@ import { ArrowLeft, Swords } from "lucide-react";
 import { locationKeywordScore } from "@/lib/subject-scoring";
 import { isPass } from "@/lib/match";
 import { AiAsk } from "@/components/ai-ask";
+import { FeedbackForm } from "@/components/feedback-form";
 
 export interface AcupointView {
   id: string;
@@ -132,6 +133,9 @@ export function AcupointDetail({ acupoint }: { acupoint: AcupointView }) {
 
             {/* AI 对话答疑 */}
             <AiAsk subject="acupoint" itemId={acupoint.id} itemName={acupoint.name} />
+
+            {/* 众包纠错反馈 */}
+            <FeedbackForm subject="acupoint" itemId={acupoint.id} itemName={acupoint.name} />
           </>
         ) : (
           <Card>

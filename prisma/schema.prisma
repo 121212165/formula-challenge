@@ -143,6 +143,7 @@ model User {
   dailyPlans      DailyPlan[]
   studySessions   StudySession[]
   conversations   AiConversation[]
+  contentSubmissions ContentSubmission[]
   streak          UserStreak?
 
   @@map("users")
@@ -262,4 +263,26 @@ model AiConversation {
 
   @@index([userId, subject, createdAt])
   @@map("ai_conversations")
+}
+
+// 众包纠错反馈(FR-4.4 数据扩充众包):用户对条目字段提交纠错建议,后台审核后合入主数据
+model ContentSubmission {
+  id             Int      @id @default(autoincrement())
+  userId         String
+  subject        String // formula | herb | acupoint
+  itemId         String   // 条目 id(如 h_huangqin / a_hegu)
+  itemName       String   // 冗余名称,便于后台列表展示
+  field          String   // 被纠错字段(functions/location/indications/property 等)
+  fieldLabel     String   @default("") // 字段中文名
+  suggestedValue String   @db.Text // 建议值
+  reason         String   @default("")
+  status         String   @default("pending") // pending | approved | rejected
+  note           String   @default("") // 审核备注
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([subject, status])
+  @@index([userId, createdAt])
+  @@map("content_submissions")
 }

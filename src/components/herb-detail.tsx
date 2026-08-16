@@ -13,6 +13,7 @@ import { ArrowLeft, Swords } from "lucide-react";
 import { functionClauseScore } from "@/lib/subject-scoring";
 import { isPass } from "@/lib/match";
 import { AiAsk } from "@/components/ai-ask";
+import { FeedbackForm } from "@/components/feedback-form";
 
 export interface HerbView {
   id: string;
@@ -140,6 +141,9 @@ export function HerbDetail({ herb }: { herb: HerbView }) {
 
             {/* AI 对话答疑 */}
             <AiAsk subject="herb" itemId={herb.id} itemName={herb.name} />
+
+            {/* 众包纠错反馈 */}
+            <FeedbackForm subject="herb" itemId={herb.id} itemName={herb.name} />
           </>
         ) : (
           <Card>

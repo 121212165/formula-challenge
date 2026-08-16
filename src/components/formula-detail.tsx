@@ -15,6 +15,7 @@ import { ArrowLeft, BookOpen, Brain, Swords } from "lucide-react";
 import type { Formula } from "@/lib/types";
 import { QuizMode } from "@/components/quiz-mode";
 import { ReciteMode } from "@/components/recite-mode";
+import { FeedbackForm } from "@/components/feedback-form";
 
 interface Props {
   formula: Formula;
@@ -228,6 +229,15 @@ export function FormulaDetail({ formula }: Props) {
               <Brain className="mr-2 h-4 w-4" /> 背诵检测
             </Button>
           </div>
+        )}
+
+        {/* 众包纠错反馈(详情态) */}
+        {mode === null && (
+          <FeedbackForm
+            subject="formula"
+            itemId={formula.id}
+            itemName={formula.name}
+          />
         )}
       </main>
     </div>

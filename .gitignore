@@ -8,3 +8,8 @@ coverage
 .vscode
 .idea
 .DS_Store
+
+# 密钥(绝不允许入库)
+.env
+.env.*
+!.env.example
