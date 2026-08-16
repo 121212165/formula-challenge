@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
-import { Activity, BookOpen, Calendar, LogOut, Search, Trophy, User as UserIcon } from "lucide-react";
+import { Activity, BookOpen, BookX, Calendar, LogOut, Search, Trophy, User as UserIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function Header() {
@@ -36,6 +36,11 @@ export function Header() {
               <Button asChild variant="ghost" size="sm">
                 <Link href="/acupoints">
                   <Activity className="mr-1 h-4 w-4" /> 针灸
+                </Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/wrong">
+                  <BookX className="mr-1 h-4 w-4" /> 错题
                 </Link>
               </Button>
               <Button
