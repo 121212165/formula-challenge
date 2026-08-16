@@ -28,6 +28,11 @@ export function Header() {
                   <Search className="mr-1 h-4 w-4" /> 搜索
                 </Link>
               </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/herbs">
+                  <BookOpen className="mr-1 h-4 w-4" /> 中药
+                </Link>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
