@@ -153,6 +153,7 @@ ${unlearnedFormulas.slice(0, 30).map((f) => `- ${f.id} (${f.name}, ${f.level})`)
         reviewCount,
         completedCount: 0,
         isCompleted: false,
+        aiGenerated: true,
       },
     });
 

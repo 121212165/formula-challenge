@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { ArrowLeft, Swords } from "lucide-react";
 import { functionClauseScore } from "@/lib/subject-scoring";
 import { isPass } from "@/lib/match";
+import { AiAsk } from "@/components/ai-ask";
 
 export interface HerbView {
   id: string;
@@ -136,6 +137,9 @@ export function HerbDetail({ herb }: { herb: HerbView }) {
             <Button variant="accent" size="lg" className="w-full" onClick={() => setMode("quiz")}>
               <Swords className="mr-2 h-4 w-4" /> 功效默写闯关
             </Button>
+
+            {/* AI 对话答疑 */}
+            <AiAsk subject="herb" itemId={herb.id} itemName={herb.name} />
           </>
         ) : (
           <Card>
