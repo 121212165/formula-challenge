@@ -3,6 +3,7 @@
 //  approve + flag:置 approved(复查完成信号)
 //  reject:置 rejected + 备注
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -16,6 +17,13 @@ const FIELD_WHITELIST: Record<string, string[]> = {
 };
 
 const MODEL_MAP = { formula: db.formula, herb: db.herb, acupoint: db.acupoint } as const;
+
+// 合入主数据后需失效的 ISR 路径(按科目)
+const SUBJECT_REVALIDATE: Record<string, string[]> = {
+  herb: ["/herbs", "/api/herbs"],
+  acupoint: ["/acupoints", "/api/acupoints"],
+  formula: ["/categories", "/api/formulas"],
+};
 
 export async function POST(
   _req: Request,
@@ -94,6 +102,10 @@ export async function POST(
       (model as any).update({ where: { id: sub.itemId }, data: { [sub.field]: sub.suggestedValue } }),
       db.contentSubmission.update({ where: { id }, data: { status: "approved", note: noteStr } }),
     ]);
+    // 合入成功 → 主动失效对应科目的 ISR 页面/API 缓存,让众包修正即时生效
+    for (const p of SUBJECT_REVALIDATE[sub.subject] ?? []) {
+      revalidatePath(p, "page");
+    }
     return NextResponse.json({ ok: true, status: "approved", merged: true });
   } catch (e) {
     console.error("[admin/submission-review] error", e);

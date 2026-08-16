@@ -5,7 +5,7 @@ import { Header } from "@/components/header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR:种子数据低频变更,1h 增量再验证(众包合入时 revalidatePath 主动失效)
 
 export default async function HerbsPage() {
   const [categories, herbs] = await Promise.all([

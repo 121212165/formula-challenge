@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 
 // GET /api/formulas/[id] - 详情
 export async function GET(
@@ -20,7 +21,7 @@ export async function GET(
       alias: safeParseArr(formula.alias),
       ingredients: safeParseArr(formula.ingredients),
       categoryName: formula.category.name,
-    });
+    }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[formula-detail] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });

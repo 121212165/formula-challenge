@@ -6,7 +6,13 @@ import { Header } from "@/components/header";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 3600; // ISR:种子数据低频变更,1h 增量再验证(众包合入时 revalidatePath 主动失效)
+
+// ISR 预渲染全部分类路径
+export async function generateStaticParams() {
+  const categories = await db.formulaCategory.findMany({ select: { id: true } });
+  return categories.map((c) => ({ id: String(c.id) }));
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;

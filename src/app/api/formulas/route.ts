@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { DATA_CACHE_HEADERS } from "@/lib/cache";
 
 // GET /api/formulas - 列表查询（支持 category / level / search）
 export async function GET(req: Request) {
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
       categoryName: f.category.name,
     }));
 
-    return NextResponse.json({ formulas: result });
+    return NextResponse.json({ formulas: result }, { headers: DATA_CACHE_HEADERS });
   } catch (e) {
     console.error("[formulas] error", e);
     return NextResponse.json({ error: "查询失败" }, { status: 500 });
