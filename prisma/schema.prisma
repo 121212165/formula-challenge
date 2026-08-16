@@ -238,6 +238,7 @@ model DailyPlan {
   reviewCount         Int      @default(0)
   completedCount      Int      @default(0)
   isCompleted         Boolean  @default(false)
+  aiGenerated         Boolean  @default(false) // true = DeepSeek/StepFun AI 生成(前端徽标)
   createdAt           DateTime @default(now())
   user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

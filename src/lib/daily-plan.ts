@@ -20,6 +20,7 @@ export interface SerializedPlan {
   reviewCount: number;
   completedCount: number;
   isCompleted: boolean;
+  aiGenerated?: boolean;
 }
 
 /** 取某日的 0 点 */
@@ -107,6 +108,7 @@ export async function generateFallbackPlan(userId: string, today: Date) {
       reviewCount: due.length,
       completedCount: 0,
       isCompleted: false,
+      aiGenerated: false,
     },
   });
 }
@@ -132,6 +134,7 @@ export function serializePlan(plan: any): SerializedPlan | null {
     reviewCount: plan.reviewCount,
     completedCount: plan.completedCount,
     isCompleted: plan.isCompleted,
+    aiGenerated: !!plan.aiGenerated,
   };
 }
 

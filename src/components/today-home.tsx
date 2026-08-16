@@ -25,6 +25,7 @@ interface SerializedPlan {
   reviewCount: number;
   completedCount: number;
   isCompleted: boolean;
+  aiGenerated?: boolean;
 }
 
 interface Props {
@@ -131,7 +132,14 @@ export function TodayHome({ plan, stats }: Props) {
         {/* 今日推荐 */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">今日推荐</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">今日推荐</CardTitle>
+              {plan?.aiGenerated && (
+                <Badge variant="accent" className="text-xs">
+                  ✨ AI 推荐
+                </Badge>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
             {plan?.recommendedFormulas.map((item, idx) => (
