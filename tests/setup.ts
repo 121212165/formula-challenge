@@ -46,6 +46,10 @@ vi.mock("@/lib/db", () => {
     studySession: new Map(),
     aiConversation: new Map(),
     userStreak: new Map(),
+    herb: new Map(),
+    herbCategory: new Map(),
+    acupoint: new Map(),
+    meridian: new Map(),
   };
   return {
     db: new Proxy(
