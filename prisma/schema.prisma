@@ -265,16 +265,19 @@ model AiConversation {
   @@map("ai_conversations")
 }
 
-// 众包纠错反馈(FR-4.4 数据扩充众包):用户对条目字段提交纠错建议,后台审核后合入主数据
+// 众包反馈(FR-4.4 数据扩充众包):
+//   type=flag      → 发现标记(用户"觉得不对",无需提供答案,信号驱动复查)
+//   type=correction→ 候选修正(用户"提供更准确版本",pending 审核后合入主数据)
 model ContentSubmission {
   id             Int      @id @default(autoincrement())
   userId         String
   subject        String // formula | herb | acupoint
   itemId         String   // 条目 id(如 h_huangqin / a_hegu)
   itemName       String   // 冗余名称,便于后台列表展示
-  field          String   // 被纠错字段(functions/location/indications/property 等)
+  type           String   @default("flag") // flag | correction
+  field          String   @default("") // 被标记/修正的字段(functions/location/…;flag 可空)
   fieldLabel     String   @default("") // 字段中文名
-  suggestedValue String   @db.Text // 建议值
+  suggestedValue String   @db.Text // correction 的建议值(flag 可为空)
   reason         String   @default("")
   status         String   @default("pending") // pending | approved | rejected
   note           String   @default("") // 审核备注
@@ -282,7 +285,7 @@ model ContentSubmission {
   updatedAt      DateTime @updatedAt
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([subject, status])
+  @@index([subject, status, type])
   @@index([userId, createdAt])
   @@map("content_submissions")
 }
