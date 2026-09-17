@@ -30,6 +30,7 @@ export interface LearningStateDraft {
   difficulty: number;
   retrievability: number;
   dueAt: Date;
+  lastReviewedAt: Date | null;
   reviewCount: number;
   lapseCount: number;
   lastRating: ReviewRating | null;
@@ -41,6 +42,7 @@ export function createInitialLearningStateDraft(now: Date): LearningStateDraft {
     difficulty: 0,
     retrievability: 1,
     dueAt: now,
+    lastReviewedAt: null,
     reviewCount: 0,
     lapseCount: 0,
     lastRating: null,

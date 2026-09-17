@@ -11,6 +11,7 @@ export interface ReviewStateSnapshot {
   difficulty: number;
   retrievability: number;
   dueAt: Date;
+  lastReviewedAt: Date | null;
   reviewCount: number;
   lapseCount: number;
   lastRating: ReviewRating | null;
