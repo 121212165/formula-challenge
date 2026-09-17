@@ -1,0 +1,32 @@
+{
+  "name": "formula-challenge-v2",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "中医知识记忆系统 V2 —— KnowledgePoint 驱动的学习闭环",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run src/tests/unit",
+    "test:integration": "vitest run src/tests/integration",
+    "test:e2e": "vitest run src/tests/e2e",
+    "typecheck": "tsc --noEmit",
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:seed": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "ts-fsrs": "^4.7.1",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.10"
+  }
+}
