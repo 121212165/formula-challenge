@@ -1,0 +1,187 @@
+/* ============================================================
+ * 首页（/）页面专属样式 —— 复用 globals.css 全局基元，仅补页面特有布局。
+ * 视觉对齐 formula-challenge-v2-ui/index.html 的首页视图。
+ * ============================================================ */
+
+/* 顶部 stat 区四张卡 */
+.home-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.home-stats .card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.stat .num {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+.stat .lbl {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.stat.herb .num {
+  color: var(--herb);
+}
+.stat.cinnabar .num {
+  color: var(--cinnabar);
+}
+
+/* 连续学习克制概览条（无后端 streak 端点，仅用 reviewedCount 做累计概览） */
+.streak-overview {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 6px 0 2px;
+}
+.streak-overview .bar {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--paper-deep);
+}
+.streak-overview .bar.on {
+  background: var(--cinnabar);
+}
+.streak-overview .bar.today {
+  background: var(--gold);
+}
+
+/* 进度环 */
+.ring-wrap {
+  display: grid;
+  place-items: center;
+  position: relative;
+  height: 104px;
+}
+.ring-num {
+  position: absolute;
+  text-align: center;
+}
+.ring-num .n {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 900;
+}
+.ring-num .l {
+  font-size: 10.5px;
+  color: var(--ink-soft);
+}
+
+/* 三科目瓦片 */
+.subject-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper-mid);
+  transition: 0.15s;
+}
+.subject-tile:hover {
+  box-shadow: var(--shadow);
+  border-color: var(--ink-faint);
+}
+.subject-tile .row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.subject-tile .ic {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.subject-tile .ic svg {
+  width: 18px;
+  height: 18px;
+}
+.subject-tile .nm {
+  font-family: var(--serif);
+  font-weight: 700;
+  font-size: 15px;
+}
+.subject-tile .ct {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.ic-formula {
+  background: var(--cinnabar-soft);
+  color: var(--cinnabar-deep);
+}
+.ic-herb {
+  background: var(--herb-soft);
+  color: var(--herb);
+}
+.ic-acupoint {
+  background: var(--gold-soft);
+  color: #7a5f30;
+}
+
+/* 任务行复选框 */
+.check {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: 0.15s;
+}
+.check.done {
+  background: var(--herb);
+  border-color: var(--herb);
+  color: #fff;
+}
+.check.done svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* 弱原因小标签 */
+.reason-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.tag {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  background: var(--paper-deep);
+  color: var(--ink-soft);
+}
+
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 900px) {
+  .home-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 560px) {
+  .home-stats {
+    grid-template-columns: 1fr;
+  }
+}

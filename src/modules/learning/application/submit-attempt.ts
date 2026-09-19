@@ -11,11 +11,15 @@
  */
 
 import {
+  ContentNotPublishedError,
+  ForbiddenError,
   InvalidStateTransitionError,
   NotFoundError,
 } from "@/shared/errors";
 import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 import type { Attempt } from "../domain/attempt";
+import { createImmutableAttempt } from "../domain/attempt";
+import { canTransitionSessionItem } from "../domain/session";
 import type { LearningRepositories } from "../domain/repositories";
 import type { QuestionRepository } from "@/modules/question/domain/question-repository";
 import type { KnowledgePointRepository } from "@/modules/knowledge/domain/knowledge-point-repository";
@@ -47,6 +51,17 @@ function randomId(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * 判断是否为数据库唯一约束冲突（Prisma P2002）。
+ * 不直接 import @prisma/client，改用结构化识别，使本用例对仓储实现保持中立：
+ * 任何抛错对象只要带有 code === "P2002"（或 name 为 PrismaClientKnownRequestError）即视为兜底命中。
+ */
+function isUniqueViolation(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { code?: unknown; name?: unknown };
+  return e.code === "P2002" || e.name === "PrismaClientKnownRequestError";
+}
+
 export class SubmitAttempt {
   constructor(private readonly deps: SubmitAttemptDeps) {}
 
@@ -61,7 +76,6 @@ export class SubmitAttempt {
       if (existing) {
         return { created: false, attempt: existing };
       }
-
       const sessionItem = await repos.sessionItems.findById(cmd.sessionItemId);
       if (!sessionItem) {
         throw new NotFoundError(`SessionItem ${cmd.sessionItemId} 不存在`);
@@ -72,7 +86,7 @@ export class SubmitAttempt {
         throw new NotFoundError(`Session ${sessionItem.sessionId} 不存在`);
       }
       if (session.userId !== cmd.userId) {
-        throw new InvalidStateTransitionError("Session 不属于该用户");
+        throw new ForbiddenError("无权访问他人的 Session");
       }
       if (session.status !== "active") {
         throw new InvalidStateTransitionError(
@@ -85,13 +99,17 @@ export class SubmitAttempt {
         throw new NotFoundError("SessionItem 尚未生成题目实例");
       }
 
-      const kp = await knowledgePoints.findPublishedById(sessionItem.knowledgePointId);
+      const kp = await knowledgePoints.findById(sessionItem.knowledgePointId);
       if (!kp) {
-        throw new NotFoundError("KnowledgePoint 不存在或未发布");
+        throw new NotFoundError("KnowledgePoint 不存在");
+      }
+      if (kp.status !== "published") {
+        throw new ContentNotPublishedError("KnowledgePoint 未发布");
       }
 
       const submittedAt = now();
-      const attempt: Attempt = {
+      // Attempt 是事实记录：经不可变工厂冻结，落库后不得被悄悄改写（BR-003）
+      const attempt: Attempt = createImmutableAttempt({
         id: idGen(),
         userId: cmd.userId,
         sessionId: session.id,
@@ -104,12 +122,32 @@ export class SubmitAttempt {
         timeSpentSeconds: Math.max(0, Math.round((submittedAt.getTime() - cmd.startedAt.getTime()) / 1000)),
         status: "submitted",
         clientRequestId: cmd.clientRequestId,
-      };
+      });
 
-      await repos.attempts.save(attempt);
+      // ── 幂等写入（BR-012）──────────────────────────────────────────────
+      // TOCTOU 说明：上方 findByClientRequestId 与下方 save 之间存在时间窗口，
+      // 两个并发请求可能都查不到 existing、同时尝试插入。应用层查不到不等于
+      // 真正唯一——并发冲突由数据库唯一约束兜底：Attempt 模型有
+      // @@unique([userId, clientRequestId])（见 prisma/schema.prisma）。
+      // 因此这里捕获 DB 的 unique violation（Prisma P2002），重查一次并以幂等结果
+      // （created:false）返回，而不是把原始数据库错误抛给调用方。
+      try {
+        await repos.attempts.save(attempt);
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          const raced = await repos.attempts.findByClientRequestId(
+            cmd.userId,
+            cmd.clientRequestId
+          );
+          if (raced) {
+            return { created: false, attempt: raced };
+          }
+        }
+        throw err;
+      }
 
-      // SessionItem：pending → active（已 active 保持不变）
-      if (sessionItem.status === "pending") {
+      // SessionItem：pending → active（状态机守卫；已 active/completed/skipped 保持不变）
+      if (canTransitionSessionItem(sessionItem.status, "active")) {
         await repos.sessionItems.save({ ...sessionItem, status: "active" });
       }
 

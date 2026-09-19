@@ -10,11 +10,13 @@
  */
 
 import {
+  ContentNotPublishedError,
   InvalidStateTransitionError,
   NotFoundError,
 } from "@/shared/errors";
 import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 import type { LearningRepositories } from "../domain/repositories";
+import { canTransitionAttempt } from "../domain/attempt";
 import type { KnowledgePointRepository } from "@/modules/knowledge/domain/knowledge-point-repository";
 import type { QuestionRepository } from "@/modules/question/domain/question-repository";
 import type { Evaluator } from "./evaluator";
@@ -71,15 +73,18 @@ export class EvaluateAttempt {
       }
 
       // 状态机：只能评价 submitted 的 Attempt（BR-013）
-      if (attempt.status !== "submitted") {
+      if (!canTransitionAttempt(attempt.status, "evaluated")) {
         throw new InvalidStateTransitionError(
           `Attempt 当前状态 ${attempt.status}，必须 submitted 后才能评价`
         );
       }
 
-      const kp = await knowledgePoints.findPublishedById(attempt.knowledgePointId);
+      const kp = await knowledgePoints.findById(attempt.knowledgePointId);
       if (!kp) {
-        throw new NotFoundError("KnowledgePoint 不存在或未发布");
+        throw new NotFoundError("KnowledgePoint 不存在");
+      }
+      if (kp.status !== "published") {
+        throw new ContentNotPublishedError("KnowledgePoint 未发布");
       }
 
       const instance = await questions.findInstanceById(attempt.questionInstanceId);
@@ -87,12 +92,21 @@ export class EvaluateAttempt {
         throw new NotFoundError("QuestionInstance 不存在");
       }
       const template = await questions.findTemplateById(instance.templateId);
-      const questionType = template?.type ?? "free_recall";
+      // §3.4：缺模板必须显式报错，不得静默退化为 free_recall
+      if (!template) {
+        throw new NotFoundError(
+          `QuestionTemplate ${instance.templateId} 不存在（缺模板不得静默退化为 free_recall）`
+        );
+      }
+      const questionType = template.type;
 
       const result = await evaluator.evaluate({
         knowledgePoint: kp,
         questionType,
         userAnswer: attempt.userAnswer,
+        // 把模板 config 与题号下传，支撑 fill_blank 复算挖空、recognition 精确比对
+        templateConfig: template.config,
+        instanceSequence: instance.sequence,
       });
 
       await repos.evaluations.save({

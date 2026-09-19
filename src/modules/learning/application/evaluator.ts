@@ -12,6 +12,14 @@ export interface EvaluationContext {
   knowledgePoint: KnowledgePoint;
   questionType: QuestionType;
   userAnswer: string;
+  /**
+   * 命中模板的 config（question-model.md §2.1 Json?）。
+   * fill_blank 读空位/可接受答案，free_recall 读分隔符与命中比例。
+   * 可选：缺省时走题型默认值；旧调用方（CanonicalMatchEvaluator）不感知。
+   */
+  templateConfig?: unknown;
+  /** 题目实例题号，fill_blank 用于确定性复算"挖了第几项"。可选，缺省 0。 */
+  instanceSequence?: number;
 }
 
 export interface Evaluator {

@@ -4,7 +4,7 @@
  * 之后可替换为 AlternativeScheduler / ExperimentalScheduler 而不污染领域。
  */
 
-import { fsrs, createEmptyCard, Rating, State, type Card, type Grade } from "ts-fsrs";
+import { fsrs, createEmptyCard, Rating, type Card, type Grade } from "ts-fsrs";
 import type { ReviewRating } from "@/shared/types/rating";
 import type { Scheduler } from "../domain/scheduler";
 import type { LearningStateDraft } from "../domain/learning-state";
@@ -20,7 +20,12 @@ function toFsrsRating(rating: ReviewRating): Grade {
   return RATING_MAP[rating];
 }
 
-/** 首次（无历史）时构造 FSRS 空卡片；否则从 draft 还原卡片 */
+/**
+ * 还原 FSRS 卡片。
+ * 新卡（无历史：reviewCount===0 或 stability===0）走 createEmptyCard（State.New）；
+ * 否则从 draft.fsrsState 还原卡片状态机，不再硬编码为 State.Review（P2-3 保真）。
+ * —— 首次 again 后卡片应停留在 State.Learning，而非被错误提升到 State.Review。
+ */
 function draftToCard(draft: LearningStateDraft, now: Date): Card {
   if (draft.reviewCount === 0 || draft.stability === 0) {
     return createEmptyCard(now);
@@ -33,7 +38,7 @@ function draftToCard(draft: LearningStateDraft, now: Date): Card {
     scheduled_days: 0,
     reps: draft.reviewCount,
     lapses: draft.lapseCount,
-    state: State.Review,
+    state: draft.fsrsState,
     last_review: draft.lastReviewedAt ?? draft.dueAt,
   };
 }
@@ -52,6 +57,8 @@ export class FsrsScheduler implements Scheduler {
       reviewCount: card.reps,
       lapseCount: card.lapses,
       lastRating: null,
+      // createEmptyCard 返回 State.New（0）
+      fsrsState: card.state,
     };
   }
 
@@ -73,6 +80,8 @@ export class FsrsScheduler implements Scheduler {
       reviewCount: nextCard.reps,
       lapseCount: nextCard.lapses,
       lastRating: rating,
+      // 透传 FSRS 计算出的新状态（Learning / Review / Relearning）
+      fsrsState: nextCard.state,
     };
   }
 }

@@ -1,0 +1,314 @@
+/* ============================================================
+ * 学习页（/learn）页面专属样式 —— 对齐原型学习视图。
+ * 全局基元复用 globals.css；这里只补答题流程特有组件。
+ * ============================================================ */
+
+.learn-shell {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* 顶部：科目选择 + 开始按钮 */
+.learn-startbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.select-box {
+  appearance: none;
+  padding: 8px 34px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background-color: var(--paper-mid);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B6559' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+/* 流程步骤指示 */
+.progress-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.step .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.step.on {
+  color: var(--ink);
+  font-weight: 500;
+}
+.step.on .dot {
+  background: var(--cinnabar);
+}
+.step.done .dot {
+  background: var(--herb);
+}
+.step-line {
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+  min-width: 8px;
+}
+
+/* 题目卡片 */
+.q-card {
+  background: var(--paper-mid);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+.q-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.q-meta .timer {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.q-title {
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 900;
+  margin-bottom: 8px;
+}
+.q-body {
+  color: var(--ink-soft);
+  font-size: 14.5px;
+  margin-bottom: 18px;
+  line-height: 1.8;
+}
+
+/* 自由复述 */
+.answer-box {
+  width: 100%;
+  min-height: 92px;
+  padding: 13px 15px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+  font-size: 14.5px;
+  font-family: inherit;
+  color: var(--ink);
+  resize: vertical;
+}
+.answer-box:focus {
+  outline: 2px solid var(--cinnabar);
+  border-color: transparent;
+}
+
+/* 填空：题干内联输入框 */
+.fill-sentence {
+  font-size: 16px;
+  line-height: 2.2;
+  color: var(--ink);
+}
+.fill-input {
+  display: inline-block;
+  min-width: 110px;
+  border: none;
+  border-bottom: 2px solid var(--cinnabar);
+  background: transparent;
+  padding: 0 6px;
+  color: var(--cinnabar-deep);
+  font-weight: 500;
+  font-size: 15px;
+  text-align: center;
+  outline: none;
+  font-family: inherit;
+}
+
+/* 单选识别 */
+.opt-list {
+  display: grid;
+  gap: 10px;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 15px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: var(--input-bg);
+  font-size: 14px;
+  cursor: pointer;
+  transition: 0.12s;
+  text-align: left;
+  width: 100%;
+  color: var(--ink);
+}
+.opt:hover {
+  border-color: var(--ink-faint);
+}
+.opt .key {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--paper-deep);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.opt.selected {
+  border-color: var(--cinnabar);
+  background: var(--cinnabar-soft);
+}
+.opt.selected .key {
+  background: var(--cinnabar);
+  color: #fff;
+}
+
+/* 对答案面板 */
+.eval-panel {
+  border-radius: 14px;
+  padding: 18px;
+  margin-top: 18px;
+  border: 1px solid;
+}
+.eval-correct {
+  background: var(--herb-soft);
+  border-color: #c9d5be;
+}
+.eval-wrong {
+  background: var(--cinnabar-soft);
+  border-color: #e5c2b8;
+}
+.eval-panel .verdict {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.eval-panel .std-answer {
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  margin-top: 8px;
+  line-height: 1.8;
+}
+.eval-panel .your-answer {
+  font-size: 13.5px;
+  color: var(--ink);
+  margin-top: 4px;
+}
+
+/* 四评级 */
+.rating-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+.rate-btn {
+  padding: 13px 8px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: var(--paper-mid);
+  text-align: center;
+  transition: 0.12s;
+  color: var(--ink);
+}
+.rate-btn .r {
+  font-family: var(--serif);
+  font-size: 15px;
+  font-weight: 700;
+}
+.rate-btn .d {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin-top: 2px;
+}
+.rate-btn:hover {
+  border-color: var(--ink-faint);
+}
+.rate-btn[data-rating="again"]:hover {
+  border-color: var(--danger);
+  background: var(--again-soft);
+}
+.rate-btn[data-rating="hard"]:hover {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+}
+.rate-btn[data-rating="good"]:hover {
+  border-color: var(--herb);
+  background: var(--herb-soft);
+}
+.rate-btn[data-rating="easy"]:hover {
+  border-color: #3e6b8c;
+  background: var(--easy-soft);
+}
+
+/* 评级后下一banner */
+.next-banner {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: var(--paper);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.next-banner .when {
+  font-size: 12px;
+  opacity: 0.7;
+}
+.next-banner .big {
+  font-family: var(--serif);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* 操作按钮行 */
+.learn-actions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+/* 完成页 */
+.done-card {
+  text-align: center;
+  padding: 48px 24px;
+}
+.done-card .num {
+  font-family: var(--serif);
+  font-size: 40px;
+  font-weight: 900;
+  color: var(--herb);
+}
+
+@media (max-width: 900px) {
+  .rating-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .q-card {
+    padding: 20px;
+  }
+}

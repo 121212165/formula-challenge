@@ -9,9 +9,11 @@ import type { QuestionRepository } from "@/modules/question/domain/question-repo
 import type {
   User,
   UserLearningProfile,
+  UserSubjectPreference,
   Credential,
   EmailVerificationToken,
   PasswordResetToken,
+  AuthSession,
 } from "@/modules/identity/domain/user";
 import type { IdentityRepositories } from "@/modules/identity/domain/repositories";
 import type { StudyPlan, StudyPlanItem } from "@/modules/study-plan/domain/study-plan";
@@ -38,6 +40,18 @@ export function createInMemoryKnowledgeRepos(
       return [...store.knowledgePoints.values()].filter(
         (kp) => kp.contentItemId === contentItemId && kp.status === "published"
       );
+    },
+    // 内存 fake 不建模 ContentItem→Subject：subjectId 不参与过滤，返回已发布知识点总数。
+    // subject 维度的精确计数由 Prisma 集成测试覆盖。
+    async countPublishedBySubject(_subjectId) {
+      return [...store.knowledgePoints.values()].filter((kp) => kp.status === "published").length;
+    },
+    // 同 countPublishedBySubject：内存 fake 不建模 ContentItem→Subject，subjectId 不参与过滤，
+    // 返回全部已发布知识点（按 weight 降序 / sortOrder 升序）；subject 维度由 Prisma 集成测试覆盖。
+    async listPublishedBySubject(_subjectId) {
+      return [...store.knowledgePoints.values()]
+        .filter((kp) => kp.status === "published")
+        .sort((a, b) => b.weight - a.weight || a.sortOrder - b.sortOrder);
     },
     async save(kp) {
       store.knowledgePoints.set(kp.id, kp);
@@ -90,6 +104,8 @@ export interface InMemoryIdentityStore {
   credentials: Map<string, Credential>;
   verificationTokens: Map<string, EmailVerificationToken>;
   passwordResetTokens: Map<string, PasswordResetToken>;
+  sessions: Map<string, AuthSession>;
+  subjectPrefs: Map<string, UserSubjectPreference>;
 }
 
 export function createInMemoryIdentityStore(): InMemoryIdentityStore {
@@ -100,6 +116,8 @@ export function createInMemoryIdentityStore(): InMemoryIdentityStore {
     credentials: new Map(),
     verificationTokens: new Map(),
     passwordResetTokens: new Map(),
+    sessions: new Map(),
+    subjectPrefs: new Map(),
   };
 }
 
@@ -153,6 +171,28 @@ export function createInMemoryIdentityRepos(
       },
       async savePasswordResetToken(token) {
         store.passwordResetTokens.set(token.id, token);
+      },
+    },
+    sessions: {
+      async findByTokenHash(tokenHash) {
+        for (const s of store.sessions.values()) {
+          if (s.tokenHash === tokenHash) return s;
+        }
+        return null;
+      },
+      async save(session) {
+        store.sessions.set(session.id, session);
+      },
+    },
+    subjectPrefs: {
+      async findByUserId(userId) {
+        return [...store.subjectPrefs.values()].filter((p) => p.userId === userId);
+      },
+      async save(preference) {
+        store.subjectPrefs.set(
+          `${preference.userId}:${preference.subjectId}`,
+          preference
+        );
       },
     },
   };

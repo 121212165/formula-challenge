@@ -5,12 +5,14 @@
 
 import { createHash } from "node:crypto";
 import { NotFoundError, ValidationError } from "@/shared/errors";
+import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 import type { IdentityRepositories } from "../domain/repositories";
 import type { PasswordHasher } from "./password-hasher";
 
 export interface ResetPasswordDeps {
   repos: IdentityRepositories;
   hasher: PasswordHasher;
+  uow: UnitOfWork;
   now?: () => Date;
 }
 
@@ -27,7 +29,7 @@ export class ResetPassword {
   constructor(private readonly deps: ResetPasswordDeps) {}
 
   async execute(cmd: ResetPasswordCommand): Promise<ResetPasswordResult> {
-    const { repos, hasher } = this.deps;
+    const { repos, hasher, uow } = this.deps;
     const now = this.deps.now ?? (() => new Date());
     if (cmd.newPassword.length < 8) {
       throw new ValidationError("密码至少 8 位");
@@ -47,13 +49,16 @@ export class ResetPassword {
 
     const passwordHash = await hasher.hash(cmd.newPassword);
     const at = now();
-    await repos.credentials.save({
-      userId: token.userId,
-      passwordHash,
-      createdAt: at,
-      updatedAt: at,
+    // credential 更新 + token 一次性标记必须同事务，避免半成功（BR-071）
+    await uow.transaction(async () => {
+      await repos.credentials.save({
+        userId: token.userId,
+        passwordHash,
+        createdAt: at,
+        updatedAt: at,
+      });
+      await repos.tokens.savePasswordResetToken({ ...token, usedAt: at });
     });
-    await repos.tokens.savePasswordResetToken({ ...token, usedAt: at });
 
     return { success: true };
   }

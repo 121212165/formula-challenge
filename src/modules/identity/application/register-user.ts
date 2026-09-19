@@ -13,6 +13,20 @@ import type { PasswordHasher } from "./password-hasher";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/**
+ * 校验是否为合法 IANA 时区标识（BR-093）。
+ * 用 Node 内置 Intl 验证，不引入新依赖；非法标识会抛 RangeError。
+ */
+function isValidTimezone(tz: string): boolean {
+  try {
+    // eslint-disable-next-line no-new
+    new Intl.DateTimeFormat(undefined, { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export interface RegisterUserDeps {
   repos: IdentityRepositories;
   hasher: PasswordHasher;
@@ -21,15 +35,14 @@ export interface RegisterUserDeps {
   now?: () => Date;
   /** 验证令牌有效期（默认 24h） */
   tokenTtlMs?: number;
-  /** 默认时区（IANA）；正式版由 onboarding 收集 */
-  defaultTimezone?: string;
 }
 
 export interface RegisterUserCommand {
   email: string;
   password: string;
   name?: string | null;
-  timezone?: string;
+  /** IANA 时区，必填（BR-093），例如 "Asia/Shanghai" */
+  timezone: string;
 }
 
 export interface RegisterUserResult {
@@ -51,7 +64,6 @@ export class RegisterUser {
     const idGen = this.deps.idGen ?? randomId;
     const now = this.deps.now ?? (() => new Date());
     const ttl = this.deps.tokenTtlMs ?? 24 * 60 * 60 * 1000;
-    const timezone = this.deps.defaultTimezone ?? "Asia/Shanghai";
 
     const email = cmd.email.trim().toLowerCase();
     if (!EMAIL_RE.test(email)) {
@@ -59,6 +71,14 @@ export class RegisterUser {
     }
     if (cmd.password.length < 8) {
       throw new ValidationError("密码至少 8 位");
+    }
+    // BR-093：时区必填且必须是合法 IANA 时区，不再缺省落库（DB 层 @default 仅作兜底）
+    const timezone = (cmd.timezone ?? "").trim();
+    if (!timezone) {
+      throw new ValidationError("时区必填（BR-093）");
+    }
+    if (!isValidTimezone(timezone)) {
+      throw new ValidationError(`无效的时区：${cmd.timezone}`);
     }
 
     return uow.transaction(async () => {
@@ -74,7 +94,7 @@ export class RegisterUser {
         id: idGen(),
         email,
         name: cmd.name ?? null,
-        timezone: cmd.timezone ?? timezone,
+        timezone,
         emailVerifiedAt: null,
         createdAt,
         updatedAt: createdAt,

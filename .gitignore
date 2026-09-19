@@ -16,3 +16,17 @@ data/raw/
 data/normalized/
 data/validated/
 data/reports/
+
+# SQLite 真实库测试产物（由 global-setup 每次重建，不入库）
+prisma/test.db
+prisma/schema.test.prisma
+src/tests/integration/.sqlite-client/
+
+# 本地数据库与备份（不入库，由 seed 重建）
+prisma/dev.db
+backups/
+*.db.bak
+
+# 临时脚本/产物
+_extract_pdf.cjs
+src/server/generated/

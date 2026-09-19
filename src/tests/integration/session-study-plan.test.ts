@@ -21,6 +21,7 @@ import {
   type InMemoryKnowledgeStore,
   type InMemoryPlanStore,
 } from "@/tests/e2e/helpers/in-memory-domain-repos";
+import { createNoopUnitOfWork } from "@/tests/e2e/helpers/noop-unit-of-work";
 import type { KnowledgePoint } from "@/modules/knowledge/domain/knowledge-point";
 import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 
@@ -58,7 +59,7 @@ const KPS: KnowledgePoint[] = [
 ];
 
 function makeUnitOfWork(): UnitOfWork {
-  return { async transaction<T>(fn: () => Promise<T>): Promise<T> { return fn(); } };
+  return createNoopUnitOfWork();
 }
 
 /** 递增 ID 生成器：多实体创建时避免 ID 冲突 */
@@ -133,11 +134,11 @@ describe("StartStudySession / Resume / Complete / Abandon", () => {
       knowledgePointIds: ["kp-1"],
     });
 
-    const complete = new CompleteSession({ repos, uow: makeUnitOfWork(), now: () => new Date("2026-09-17T08:10:00.000Z") });
-    const done = await complete.execute({ sessionId: "session-001" });
+    const complete = new CompleteSession({ repos, uow: makeUnitOfWork(), now: () => new Date("2026-09-17T08:10:00.000Z"), getLocalDate: async () => LOCAL_DATE });
+    const done = await complete.execute({ sessionId: "session-001", userId: USER_ID });
     expect(done.session.status).toBe("completed");
     expect(done.session.durationSeconds).toBe(600);
-    await expect(complete.execute({ sessionId: "session-001" })).rejects.toThrow(/active/);
+    await expect(complete.execute({ sessionId: "session-001", userId: USER_ID })).rejects.toThrow(/active/);
   });
 
   it("Abandon 置为 abandoned", async () => {
@@ -154,8 +155,8 @@ describe("StartStudySession / Resume / Complete / Abandon", () => {
       subjectId: "formula",
       knowledgePointIds: ["kp-1"],
     });
-    const abandon = new AbandonSession({ repos, uow: makeUnitOfWork(), now: () => NOW });
-    const result = await abandon.execute({ sessionId: "session-001" });
+    const abandon = new AbandonSession({ repos, uow: makeUnitOfWork(), now: () => NOW, getLocalDate: async () => LOCAL_DATE });
+    const result = await abandon.execute({ sessionId: "session-001", userId: USER_ID });
     expect(result.session.status).toBe("abandoned");
   });
 });
@@ -184,6 +185,7 @@ describe("GenerateStudyPlan / TodayPlan / CompletePlanItem", () => {
       reviewCount: 3,
       lapseCount: 1,
       lastRating: "hard",
+      fsrsState: 2, // State.Review（已巩固的成熟卡片）
       createdAt: NOW,
       updatedAt: NOW,
     });
@@ -267,7 +269,7 @@ describe("GenerateStudyPlan / TodayPlan / CompletePlanItem", () => {
       newKnowledgePointIds: ["kp-2"],
     });
 
-    const complete = new CompletePlanItem({ planRepo });
+    const complete = new CompletePlanItem({ planRepo, uow: makeUnitOfWork() });
     const done = await complete.execute({ itemId: items[0]!.id });
     expect(done.status).toBe("completed");
     expect(done.knowledgePointId).toBe("kp-1");
@@ -278,7 +280,6 @@ describe("GenerateStudyPlan / TodayPlan / CompletePlanItem", () => {
   });
 
   it("FinalizeReview 后，StudyPlan 不受影响（计划只是建议）", async () => {
-    // 简化断言：完成条目不触碰任何学习状态
     const repos = createInMemoryRepos(store);
     const planRepo = createInMemoryPlanRepos(planStore);
     const gen = new GenerateStudyPlan({
@@ -289,6 +290,50 @@ describe("GenerateStudyPlan / TodayPlan / CompletePlanItem", () => {
       now: () => NOW,
     });
     await gen.execute({ userId: USER_ID, localDate: LOCAL_DATE, newKnowledgePointIds: ["kp-1"] });
+
+    // 前置数据：Session + SessionItem(active) + Attempt(evaluated) + Evaluation
+    await repos.sessions.save({
+      id: "session-1",
+      userId: USER_ID,
+      subjectId: "formula",
+      mode: "daily",
+      startedAt: NOW,
+      endedAt: null,
+      status: "active",
+      durationSeconds: 0,
+    });
+    await repos.sessionItems.save({
+      id: "item-1",
+      sessionId: "session-1",
+      knowledgePointId: "kp-1",
+      position: 0,
+      status: "active",
+      questionInstanceId: "qi-1",
+    });
+    await repos.attempts.save({
+      id: "attempt-1",
+      userId: USER_ID,
+      sessionId: "session-1",
+      sessionItemId: "item-1",
+      questionInstanceId: "qi-1",
+      knowledgePointId: "kp-1",
+      userAnswer: "x",
+      startedAt: NOW,
+      submittedAt: NOW,
+      timeSpentSeconds: 1,
+      status: "evaluated",
+      clientRequestId: "req-1",
+    });
+    await repos.evaluations.save({
+      id: "ev-1",
+      attemptId: "attempt-1",
+      score: 1,
+      isCorrect: true,
+      confidence: 0.9,
+      feedback: null,
+      createdAt: NOW,
+    });
+
     const review = new FinalizeReview({
       repos,
       uow: makeUnitOfWork(),
@@ -297,7 +342,11 @@ describe("GenerateStudyPlan / TodayPlan / CompletePlanItem", () => {
       now: () => new Date("2026-09-17T09:00:00.000Z"),
       getLocalDate: async () => LOCAL_DATE,
     });
-    void review;
+    // 真实调用 review.execute()，而非 void review
+    const rv = await review.execute({ attemptId: "attempt-1", rating: "good" });
+    expect(rv.created).toBe(true);
+    expect(rv.learningState.reviewCount).toBe(1);
+
     // 计划条目保持 pending（review 不会自动完成计划条目；由上层决定）
     expect(planStore.items.size).toBe(1);
     expect([...planStore.items.values()][0]!.status).toBe("pending");

@@ -1,0 +1,71 @@
+/* ============================================================
+ * 复习页（/review）页面专属样式 —— 对齐原型复习视图。
+ * ============================================================ */
+
+.rev-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.rev-top .spacer {
+  margin-left: auto;
+}
+.select-box {
+  appearance: none;
+  padding: 8px 34px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background-color: var(--paper-mid);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B6559' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font-size: 13.5px;
+  font-family: inherit;
+  color: var(--ink);
+}
+
+.tab-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--line-soft);
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+.tab-pill {
+  padding: 7px 16px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  color: var(--ink-soft);
+  background: var(--paper-deep);
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+}
+.tab-pill.active {
+  background: var(--ink);
+  color: var(--paper);
+}
+.rev-num {
+  font-size: 11px;
+  background: var(--cinnabar);
+  color: #fff;
+  border-radius: 99px;
+  padding: 0 7px;
+  margin-left: 5px;
+}
+.rev-num.idle {
+  background: var(--line);
+}
+
+.rev-reason {
+  font-size: 11px;
+  color: var(--ink-soft);
+  background: var(--paper-deep);
+  border-radius: 6px;
+  padding: 1px 8px;
+  margin-right: 5px;
+  display: inline-block;
+}

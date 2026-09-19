@@ -6,9 +6,11 @@
 import type {
   User,
   UserLearningProfile,
+  UserSubjectPreference,
   Credential,
   EmailVerificationToken,
   PasswordResetToken,
+  AuthSession,
 } from "./user";
 
 export interface UserRepository {
@@ -27,6 +29,18 @@ export interface CredentialRepository {
   save(credential: Credential): Promise<void>;
 }
 
+/** 科目偏好（Onboarding 选科目）。属于身份/偏好域，不触碰任何学习状态。 */
+export interface SubjectPreferenceRepository {
+  findByUserId(userId: string): Promise<UserSubjectPreference[]>;
+  save(preference: UserSubjectPreference): Promise<void>;
+}
+
+/** 登录会话仓储（Phase 5）。只按 tokenHash 查；save 透传 id（应用层生成）。 */
+export interface SessionRepository {
+  findByTokenHash(tokenHash: string): Promise<AuthSession | null>;
+  save(session: AuthSession): Promise<void>;
+}
+
 export interface AuthTokenRepository {
   findVerificationToken(tokenHash: string): Promise<EmailVerificationToken | null>;
   saveVerificationToken(token: EmailVerificationToken): Promise<void>;
@@ -38,5 +52,7 @@ export interface IdentityRepositories {
   users: UserRepository;
   profiles: UserProfileRepository;
   credentials: CredentialRepository;
+  subjectPrefs: SubjectPreferenceRepository;
   tokens: AuthTokenRepository;
+  sessions: SessionRepository;
 }

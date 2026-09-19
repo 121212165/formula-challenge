@@ -18,8 +18,10 @@ import {
   type InMemoryKnowledgeStore,
   type InMemoryQuestionStore,
 } from "@/tests/e2e/helpers/in-memory-domain-repos";
+import { createNoopUnitOfWork } from "@/tests/e2e/helpers/noop-unit-of-work";
 import type { KnowledgePoint } from "@/modules/knowledge/domain/knowledge-point";
 import type { QuestionTemplate } from "@/modules/question/domain/question";
+import type { Attempt } from "@/modules/learning/domain/attempt";
 import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 
 const USER_ID = "user-001";
@@ -47,7 +49,7 @@ const TEMPLATE: QuestionTemplate = {
 };
 
 function makeUnitOfWork(): UnitOfWork {
-  return { async transaction<T>(fn: () => Promise<T>): Promise<T> { return fn(); } };
+  return createNoopUnitOfWork();
 }
 
 async function seedSession(
@@ -174,6 +176,83 @@ describe("SubmitAttempt", () => {
     expect(second.attempt.id).toBe(first.attempt.id);
     expect(second.attempt.userAnswer).toBe("麻黄");
     expect(store.attempts.size).toBe(1);
+  });
+
+  it("TOCTOU 并发兜底：save 撞 DB 唯一约束(P2002) → 捕获后返回幂等结果（P2-2 / BR-012）", async () => {
+    const kpStore: InMemoryKnowledgeStore = { knowledgePoints: new Map([[KP.id, KP]]) };
+    const qStore: InMemoryQuestionStore = {
+      templates: new Map([[TEMPLATE.id, TEMPLATE]]),
+      instances: new Map(),
+    };
+    const repos = createInMemoryRepos(store);
+    await seedSession(store, qStore);
+
+    // 并发竞争的"赢家"：另一并发请求已抢先落库的 Attempt
+    const winner: Attempt = {
+      id: "attempt-winner",
+      userId: USER_ID,
+      sessionId: "session-001",
+      sessionItemId: "session-item-001",
+      questionInstanceId: "qi-001",
+      knowledgePointId: KP.id,
+      userAnswer: "赢家答案",
+      startedAt: new Date("2026-09-17T08:04:00.000Z"),
+      submittedAt: new Date("2026-09-17T08:05:00.000Z"),
+      timeSpentSeconds: 60,
+      status: "submitted",
+      clientRequestId: "req-race",
+    };
+
+    // 模拟 TOCTOU 窗口：预检 findByClientRequestId 查不到（两请求并发都通过预检），
+    // save 时 DB @@unique([userId, clientRequestId]) 抛 P2002，
+    // 应用层捕获后重查，返回赢家的幂等结果。
+    let findCalls = 0;
+    const racingAttempts = {
+      async findById(id: string) {
+        return repos.attempts.findById(id);
+      },
+      async findByClientRequestId(userId: string, crid: string) {
+        findCalls++;
+        // 第 1 次：进入用例的幂等预检 → 模拟窗口内查不到
+        // 第 2 次：catch 后的重查 → 返回并发赢家
+        if (findCalls === 1) return null;
+        void userId;
+        void crid;
+        return winner;
+      },
+      async save() {
+        const err = new Error("Unique constraint failed on the fields: (userId, clientRequestId)") as Error & {
+          code: string;
+        };
+        err.code = "P2002";
+        throw err;
+      },
+      async updateStatus(id: string, status: Attempt["status"]) {
+        return repos.attempts.updateStatus(id, status);
+      },
+    };
+
+    submitAttempt = new SubmitAttempt({
+      repos: { ...repos, attempts: racingAttempts },
+      questions: createInMemoryQuestionRepos(qStore),
+      knowledgePoints: createInMemoryKnowledgeRepos(kpStore),
+      uow: makeUnitOfWork(),
+      idGen: () => "attempt-loser",
+      now: () => new Date("2026-09-17T08:05:00.000Z"),
+    });
+
+    const result = await submitAttempt.execute({
+      userId: USER_ID,
+      sessionItemId: "session-item-001",
+      userAnswer: "输家答案",
+      clientRequestId: "req-race",
+      startedAt: new Date("2026-09-17T08:04:00.000Z"),
+    });
+
+    // 关键断言：原始 P2002 错误被吞掉，转为幂等结果 created:false
+    expect(result.created).toBe(false);
+    expect(result.attempt.id).toBe("attempt-winner");
+    expect(result.attempt.userAnswer).toBe("赢家答案");
   });
 
   it("Session 已结束时拒绝提交", async () => {
@@ -323,6 +402,7 @@ describe("完整链路：Submit → Evaluate → Review", () => {
     const generate = new (await import("@/modules/question/application/generate-question")).GenerateQuestion({
       questions,
       knowledgePoints,
+      sessionItems: repos.sessionItems,
       uow,
       idGen: () => "qi-001",
       now,
@@ -331,11 +411,8 @@ describe("完整链路：Submit → Evaluate → Review", () => {
       sessionItemId: "session-item-001",
       knowledgePointId: KP.id,
     });
-    // 更新 item 指向实例
-    await store.sessionItems.set("session-item-001", {
-      ...store.sessionItems.get("session-item-001")!,
-      questionInstanceId: "qi-001",
-    });
+    // generate 已回写 questionInstanceId；此处保留显式断言确认链路闭合（P1-9）
+    expect(store.sessionItems.get("session-item-001")?.questionInstanceId).toBe("qi-001");
 
     // 提交
     const submit = new SubmitAttempt({
