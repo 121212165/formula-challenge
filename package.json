@@ -11,6 +11,7 @@
     "test:integration": "vitest run src/tests/integration",
     "test:e2e": "vitest run src/tests/e2e",
     "typecheck": "tsc --noEmit",
+    "postinstall": "prisma generate",
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",

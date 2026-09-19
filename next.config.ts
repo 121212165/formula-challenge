@@ -9,9 +9,15 @@
  */
 import type { NextConfig } from "next";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // 显式锁定产物输出根：防止上级目录存在 bun.lock / 多 lockfile 时
+  // Next.js 推断错 workspace root，导致 .next 产物路径错乱（Vercel/本地均适用）
+  outputFileTracingRoot: projectRoot,
   // 关闭 Next 内置图片优化
   images: {
     unoptimized: true,
