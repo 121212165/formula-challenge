@@ -1,0 +1,681 @@
+// formula-challenge V2 — Prisma Schema
+// 架构文档 §45：约 28 个模型，8 个领域
+// 原则（§44）：LearningState/Attempt/ReviewEvent/StudyDay/AiMessage 等禁止用 JSON 代替
+
+generator client {
+  output   = "../src/server/generated/prisma-dev"
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ==================== 枚举 ====================
+
+enum ContentItemStatus {
+  draft
+  review
+  published
+  archived
+}
+
+enum KnowledgePointStatus {
+  draft
+  published
+  archived
+}
+
+enum QuestionType {
+  free_recall
+  fill_blank
+  recognition
+  ordering
+}
+
+enum AttemptStatus {
+  submitted
+  evaluated
+  reviewed
+}
+
+enum ReviewRating {
+  again
+  hard
+  good
+  easy
+}
+
+enum StudySessionMode {
+  daily
+  review
+  free
+  topic
+  diagnostic
+}
+
+enum StudySessionStatus {
+  active
+  completed
+  abandoned
+}
+
+enum SessionItemStatus {
+  pending
+  active
+  completed
+  skipped
+}
+
+enum StudyPlanSource {
+  scheduler
+  ai
+  manual
+}
+
+enum StudyPlanStatus {
+  draft
+  active
+  completed
+  expired
+}
+
+enum StudyPlanItemType {
+  new
+  review
+  weakness
+}
+
+enum StudyPlanItemStatus {
+  pending
+  completed
+  skipped
+}
+
+enum AiMessageRole {
+  system
+  user
+  assistant
+}
+
+enum ContentIssueType {
+  incorrect
+  missing
+  unclear
+  source
+  other
+}
+
+enum ContentIssueStatus {
+  pending
+  reviewing
+  accepted
+  rejected
+}
+
+enum LearningStage {
+  beginner
+  intermediate
+  advanced
+  exam
+}
+
+// ==================== Identity ====================
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  timezone         String   @default("Asia/Shanghai")
+  emailVerifiedAt  DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  learningProfile  UserLearningProfile?
+  credential       Credential?
+  subjectPreferences UserSubjectPreference[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  authSessions         AuthSession[]
+
+  studySessions    StudySession[]
+  attempts         Attempt[]
+  evaluations      Evaluation[]
+  reviewEvents     ReviewEvent[]
+  learningStates   LearningState[]
+  studyDays        StudyDay[]
+  studyPlans       StudyPlan[]
+  aiConversations  AiConversation[]
+  contentIssues    ContentIssue[]
+}
+
+model UserLearningProfile {
+  id             String       @id @default(cuid())
+  userId         String       @unique
+  dailyMinutes   Int          @default(20)
+  dailyItemTarget Int         @default(10)
+  learningStage  LearningStage @default(beginner)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_learning_profiles")
+}
+
+model UserSubjectPreference {
+  id        String   @id @default(cuid())
+  userId    String
+  subjectId String
+  enabled   Boolean  @default(true)
+  priority  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, subjectId])
+  @@map("user_subject_preferences")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+model Credential {
+  userId       String   @id
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("credentials")
+}
+
+// AuthSession —— 登录会话（Phase 5）。
+// 只存 token 的 sha256 哈希（永不存明文）；expiresAt 过期；revokedAt 登出/撤销标记。
+// 与学习域的 StudySession 无关：本模型只回答"这个登录态是否有效"。
+model AuthSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
+// ==================== Content ====================
+
+model Subject {
+  id          String          @id @default(cuid())
+  code        String          @unique // formula | herb | acupoint
+  name        String
+  description String          @default("")
+  enabled     Boolean         @default(true)
+  categories  SubjectCategory[]
+  contentItems ContentItem[]
+
+  @@map("subjects")
+}
+
+model SubjectCategory {
+  id          String       @id @default(cuid())
+  subjectId   String
+  name        String
+  description String       @default("")
+  sortOrder   Int          @default(0)
+  subject     Subject      @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  contentItems ContentItem[]
+
+  @@unique([subjectId, name])
+  @@index([subjectId, sortOrder])
+  @@map("subject_categories")
+}
+
+model ContentItem {
+  id          String            @id @default(cuid())
+  subjectId   String
+  categoryId  String?
+  slug        String
+  name        String
+  status      ContentItemStatus @default(draft)
+  sortOrder   Int               @default(0)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  subject     Subject           @relation(fields: [subjectId], references: [id])
+  category    SubjectCategory?  @relation(fields: [categoryId], references: [id])
+  formula     FormulaContent?
+  herb        HerbContent?
+  acupoint    AcupointContent?
+  versions    ContentVersion[]
+  knowledgePoints KnowledgePoint[]
+  issues      ContentIssue[]
+
+  @@unique([subjectId, slug])
+  @@index([subjectId, status, sortOrder])
+  @@map("content_items")
+}
+
+model FormulaContent {
+  contentItemId          String  @id
+  source                 String  @default("")
+  alias                  Json     @default("[]") // 别名列表（String[] 在 SQLite 不可用，改 Json；仓储负责 string[]<->Json 序列化）
+  level                  String  @default("")
+  mnemonic               String?
+  mnemonicExplanation    String?
+  contentItem            ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@map("formula_contents")
+}
+
+model HerbContent {
+  contentItemId      String  @id
+  source             String  @default("")
+  alias              Json     @default("[]")
+  property           String  @default("")
+  meridian           String  @default("")
+  usage              String  @default("")
+  contraindications  String  @default("")
+  contentItem        ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@map("herb_contents")
+}
+
+model Meridian {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  code        String          @unique
+  description String          @default("")
+  sortOrder   Int             @default(0)
+  acupoints   AcupointContent[]
+
+  @@map("meridians")
+}
+
+model AcupointContent {
+  contentItemId String     @id
+  pinyin        String     @default("")
+  code          String     @unique
+  meridianId    String
+  location      String     @default("")
+  method        String     @default("")
+  caution       String     @default("")
+  special       String     @default("")
+  meridian      Meridian   @relation(fields: [meridianId], references: [id])
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+
+  @@index([meridianId])
+  @@map("acupoint_contents")
+}
+
+model ContentSource {
+  id        String   @id @default(cuid())
+  title     String
+  edition   String?
+  publisher String?
+  year      Int?
+  citation  String?
+  createdAt DateTime @default(now())
+  versions  ContentVersion[]
+
+  @@map("content_sources")
+}
+
+model ContentVersion {
+  id            String   @id @default(cuid())
+  contentItemId String
+  version       Int
+  sourceId      String?
+  contentHash   String
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  contentItem   ContentItem @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  source        ContentSource? @relation(fields: [sourceId], references: [id])
+
+  @@unique([contentItemId, version])
+  @@index([contentItemId, createdAt])
+  @@map("content_versions")
+}
+
+// ==================== Knowledge ====================
+
+model KnowledgePoint {
+  id             String              @id @default(cuid())
+  contentItemId  String
+  code           String
+  type           String              // "formula.ingredients" 等统一编码
+  title          String
+  canonicalAnswer String
+  explanation    String?
+  difficulty     Float               @default(0.5)
+  weight         Float               @default(1)
+  status         KnowledgePointStatus @default(draft)
+  sortOrder      Int                 @default(0)
+
+  contentItem    ContentItem         @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  learningStates LearningState[]
+  questionInstances QuestionInstance[]
+  sessionItems   SessionItem[]
+  attempts       Attempt[]
+  reviewEvents   ReviewEvent[]
+  planItems      StudyPlanItem[]
+  issues         ContentIssue[]
+
+  @@unique([contentItemId, code])
+  @@index([contentItemId, status])
+  @@index([type])
+  @@map("knowledge_points")
+}
+
+// ==================== Question ====================
+
+model QuestionTemplate {
+  id                 String   @id @default(cuid())
+  knowledgePointType String
+  type               QuestionType
+  difficulty         Float    @default(0.5)
+  config             Json?
+  enabled            Boolean  @default(true)
+  instances          QuestionInstance[]
+
+  @@unique([knowledgePointType, type])
+  @@map("question_templates")
+}
+
+model QuestionInstance {
+  id              String   @id @default(cuid())
+  sessionItemId   String
+  knowledgePointId String
+  templateId      String
+  sequence        Int      @default(0)
+  generatedAt     DateTime @default(now())
+
+  sessionItem     SessionItem @relation(fields: [sessionItemId], references: [id], onDelete: Cascade)
+  knowledgePoint  KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+  template        QuestionTemplate @relation(fields: [templateId], references: [id])
+  attempts        Attempt[]
+
+  @@index([sessionItemId])
+  @@index([knowledgePointId])
+  @@map("question_instances")
+}
+
+// ==================== Learning ====================
+
+model StudySession {
+  id              String             @id @default(cuid())
+  userId          String
+  subjectId       String
+  mode            StudySessionMode   @default(daily)
+  startedAt       DateTime           @default(now())
+  endedAt         DateTime?
+  status          StudySessionStatus @default(active)
+  durationSeconds Int                @default(0)
+
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items           SessionItem[]
+  attempts        Attempt[]
+
+  @@index([userId, startedAt])
+  @@map("study_sessions")
+}
+
+model SessionItem {
+  id                 String            @id @default(cuid())
+  sessionId          String
+  knowledgePointId   String
+  position           Int               @default(0)
+  status             SessionItemStatus @default(pending)
+  questionInstanceId String?
+
+  session            StudySession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  knowledgePoint     KnowledgePoint    @relation(fields: [knowledgePointId], references: [id])
+  questionInstances  QuestionInstance[]
+  attempts           Attempt[]
+
+  @@unique([sessionId, position])
+  @@index([sessionId, status])
+  @@map("session_items")
+}
+
+model Attempt {
+  id                 String        @id @default(cuid())
+  userId             String
+  sessionId          String
+  sessionItemId      String
+  questionInstanceId String
+  knowledgePointId   String
+  userAnswer         String        @default("")
+  startedAt          DateTime      @default(now())
+  submittedAt        DateTime      @default(now())
+  timeSpentSeconds   Int           @default(0)
+  status             AttemptStatus @default(submitted)
+  // 幂等键（BR-012）。@@unique([userId, clientRequestId]) 是 TOCTOU 兜底：
+  // 应用层 findByClientRequestId 与 save 之间存在并发窗口，DB 唯一约束在此兜底，
+  // 冲突时由应用层捕获 P2002 并重查返回幂等结果（created:false）。
+  clientRequestId    String
+
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session            StudySession  @relation(fields: [sessionId], references: [id])
+  sessionItem        SessionItem   @relation(fields: [sessionItemId], references: [id])
+  questionInstance   QuestionInstance @relation(fields: [questionInstanceId], references: [id])
+  knowledgePoint     KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+  evaluation         Evaluation?
+  reviewEvent        ReviewEvent?
+
+  @@unique([userId, clientRequestId])
+  @@index([sessionId])
+  @@index([knowledgePointId])
+  @@map("attempts")
+}
+
+model Evaluation {
+  id         String   @id @default(cuid())
+  attemptId  String   @unique
+  userId     String
+  score      Float
+  isCorrect  Boolean
+  confidence Float    @default(0)
+  feedback   String?
+  createdAt  DateTime @default(now())
+
+  attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("evaluations")
+}
+
+model ReviewEvent {
+  id             String       @id @default(cuid())
+  attemptId      String       @unique // BR-030：一个 Attempt 最多一个 ReviewEvent
+  userId         String
+  knowledgePointId String
+  rating         ReviewRating
+  reviewedAt     DateTime     @default(now())
+  previousState  Json         // ReviewStateSnapshot 快照（不可查询历史快照，允许 JSON）
+  nextState      Json         // ReviewStateSnapshot 快照
+  createdAt      DateTime     @default(now())
+
+  attempt        Attempt      @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+
+  @@index([userId, reviewedAt])
+  @@map("review_events")
+}
+
+model LearningState {
+  id               String       @id @default(cuid())
+  userId           String
+  knowledgePointId String
+  stability        Float        @default(0)
+  difficulty       Float        @default(0)
+  retrievability   Float        @default(1)
+  dueAt            DateTime
+  lastReviewedAt   DateTime?
+  reviewCount      Int          @default(0)
+  lapseCount       Int          @default(0)
+  lastRating       ReviewRating?
+  fsrsState        Int          @default(0) // FSRS 卡片状态机原值（New/Learning/Review/Relearning），domain LearningState.fsrsState
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, knowledgePointId]) // BR-040
+  @@index([userId, dueAt])
+  @@map("learning_states")
+}
+
+model StudyDay {
+  id                   String @id @default(cuid())
+  userId               String
+  localDate            String // "YYYY-MM-DD" 用户时区
+  minutes              Int    @default(0)
+  attemptCount         Int    @default(0)
+  correctCount         Int    @default(0)
+  reviewCount          Int    @default(0)
+  newCount             Int    @default(0)
+  completedSessionCount Int   @default(0)
+
+  user                 User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, localDate]) // BR-070
+  @@index([userId, localDate])
+  @@map("study_days")
+}
+
+// ==================== Study Plan ====================
+
+model StudyPlan {
+  id        String         @id @default(cuid())
+  userId    String
+  localDate String         // "YYYY-MM-DD" 用户时区
+  source    StudyPlanSource @default(scheduler)
+  status    StudyPlanStatus @default(draft)
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     StudyPlanItem[]
+
+  @@unique([userId, localDate]) // BR-060
+  @@map("study_plans")
+}
+
+model StudyPlanItem {
+  id               String            @id @default(cuid())
+  planId           String
+  knowledgePointId String
+  type             StudyPlanItemType
+  reason           String            @default("")
+  position         Int               @default(0)
+  status           StudyPlanItemStatus @default(pending)
+
+  plan             StudyPlan         @relation(fields: [planId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint    @relation(fields: [knowledgePointId], references: [id])
+
+  @@unique([planId, knowledgePointId])
+  @@index([planId, status, position])
+  @@map("study_plan_items")
+}
+
+// ==================== AI ====================
+
+model AiConversation {
+  id              String      @id @default(cuid())
+  userId          String
+  subjectId       String?
+  knowledgePointId String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages        AiMessage[]
+
+  @@index([userId, createdAt])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             String        @id @default(cuid())
+  conversationId String
+  role           AiMessageRole
+  content        String
+  model          String?
+  tokenCount     Int?
+  createdAt      DateTime      @default(now())
+
+  conversation   AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("ai_messages")
+}
+
+// ==================== Governance ====================
+
+model ContentIssue {
+  id              String             @id @default(cuid())
+  reporterId      String
+  contentItemId   String
+  knowledgePointId String?
+  type            ContentIssueType
+  description     String
+  status          ContentIssueStatus @default(pending)
+  reviewerId      String?
+  resolution      String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  reporter        User               @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  contentItem     ContentItem        @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
+  knowledgePoint  KnowledgePoint?    @relation(fields: [knowledgePointId], references: [id])
+
+  @@index([contentItemId, status])
+  @@index([reporterId, createdAt])
+  @@map("content_issues")
+}
+
+// ==================== Audit（Phase 13 生产加固）====================
+// 审计日志：记录关键安全/治理动作（登录成功/失败、Issue 审核、内容发布）。
+// actorUserId 可空（登录失败时尚无用户）；不建外键，避免登录失败 / 匿名写入受 FK 约束。
+// detail 用 Json 存上下文（如登录失败的尝试邮箱、审核 decision/versionId）。
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  targetType   String?
+  targetId     String?
+  requestId    String?
+  detail       Json
+  createdAt    DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
+}

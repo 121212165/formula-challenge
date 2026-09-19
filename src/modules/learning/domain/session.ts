@@ -33,3 +33,18 @@ export function canTransitionSession(from: StudySessionStatus, to: StudySessionS
   if (from === "active" && (to === "completed" || to === "abandoned")) return true;
   return false;
 }
+
+/**
+ * SessionItem 状态机（Phase 8 焦点 5）。
+ * 合法路径：pending → active → completed；pending/active → skipped。
+ * 禁止 pending → completed 直跳（必须先 active）。
+ */
+export function canTransitionSessionItem(from: SessionItemStatus, to: SessionItemStatus): boolean {
+  const legal: Record<SessionItemStatus, SessionItemStatus[]> = {
+    pending: ["active", "skipped"],
+    active: ["completed", "skipped"],
+    completed: [],
+    skipped: [],
+  };
+  return legal[from]?.includes(to) ?? false;
+}

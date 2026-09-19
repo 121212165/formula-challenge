@@ -40,3 +40,19 @@ export interface ContentItem {
 export function isContentVisible(status: ContentItemStatus): boolean {
   return status === "published";
 }
+
+/**
+ * ContentItem 状态机（Phase 1 焦点 3 / 架构文档 §31）。
+ * 合法路径：draft → review → published → archived；
+ * published 可回退到 review（修订重审）；review 可回退到 draft（驳回修改）。
+ * 禁止 draft → published 直通（必须经过 review）。
+ */
+export function canTransitionContent(from: ContentItemStatus, to: ContentItemStatus): boolean {
+  const legal: Record<ContentItemStatus, ContentItemStatus[]> = {
+    draft: ["review"],
+    review: ["draft", "published"],
+    published: ["review", "archived"],
+    archived: ["published"],
+  };
+  return legal[from]?.includes(to) ?? false;
+}

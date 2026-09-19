@@ -26,3 +26,35 @@ export interface StudyPlanItem {
   position: number;
   status: StudyPlanItemStatus;
 }
+
+/**
+ * StudyPlan 状态机（Phase 1 焦点 3 / 架构文档 §24）。
+ * 合法路径：draft → active → completed；active → expired（过期未完成）。
+ * 生成时必须先建 draft，再显式激活到 active；禁止生成即 active。
+ */
+export function canTransitionPlan(from: StudyPlanStatus, to: StudyPlanStatus): boolean {
+  const legal: Record<StudyPlanStatus, StudyPlanStatus[]> = {
+    draft: ["active"],
+    active: ["completed", "expired"],
+    completed: [],
+    expired: [],
+  };
+  return legal[from]?.includes(to) ?? false;
+}
+
+/**
+ * StudyPlanItem 状态机（Phase 9）。
+ * 注意：item 没有 active 态；合法路径只有 pending → completed / pending → skipped，
+ * completed / skipped 均为终态。CompletePlanItem / SkipPlanItem 走本守卫。
+ */
+export function canTransitionPlanItem(
+  from: StudyPlanItemStatus,
+  to: StudyPlanItemStatus
+): boolean {
+  const legal: Record<StudyPlanItemStatus, StudyPlanItemStatus[]> = {
+    pending: ["completed", "skipped"],
+    completed: [],
+    skipped: [],
+  };
+  return legal[from]?.includes(to) ?? false;
+}

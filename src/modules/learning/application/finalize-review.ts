@@ -23,7 +23,11 @@ import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 import type { LearningRepositories } from "../domain/repositories";
 import type { Scheduler } from "../domain/scheduler";
 import type { LearningState, LearningStateDraft } from "../domain/learning-state";
+import { LearningStateFromDraft } from "../domain/learning-state";
 import type { ReviewEvent, ReviewStateSnapshot } from "../domain/review-event";
+import { createImmutableReviewEvent } from "../domain/review-event";
+import { canTransitionAttempt } from "../domain/attempt";
+import { canTransitionSessionItem } from "../domain/session";
 
 export interface FinalizeReviewDeps {
   repos: LearningRepositories;
@@ -59,6 +63,7 @@ function toDraft(state: LearningState): LearningStateDraft {
     reviewCount: state.reviewCount,
     lapseCount: state.lapseCount,
     lastRating: state.lastRating,
+    fsrsState: state.fsrsState,
   };
 }
 
@@ -72,6 +77,7 @@ function toSnapshot(draft: LearningStateDraft): ReviewStateSnapshot {
     reviewCount: draft.reviewCount,
     lapseCount: draft.lapseCount,
     lastRating: draft.lastRating,
+    fsrsState: draft.fsrsState,
   };
 }
 
@@ -111,7 +117,7 @@ export class FinalizeReview {
       }
 
       // 状态机：Attempt 必须已 evaluated 才能评级（BR-013）
-      if (attempt.status !== "evaluated") {
+      if (!canTransitionAttempt(attempt.status, "reviewed")) {
         throw new InvalidStateTransitionError(
           `Attempt 当前状态 ${attempt.status}，必须 evaluated 后才能评级`
         );
@@ -131,8 +137,8 @@ export class FinalizeReview {
       // Scheduler 计算 nextState（BR-032）
       const next: LearningStateDraft = scheduler.review(previous, cmd.rating, reviewedAt);
 
-      // ReviewEvent（含前后快照）
-      const reviewEvent: ReviewEvent = {
+      // ReviewEvent（含前后快照，不可变事实，BR-034：一次评级对应一组快照）
+      const reviewEvent: ReviewEvent = createImmutableReviewEvent({
         id: idGen(),
         attemptId: attempt.id,
         userId: attempt.userId,
@@ -141,24 +147,17 @@ export class FinalizeReview {
         reviewedAt,
         previousState: toSnapshot(previous),
         nextState: toSnapshot(next),
-      };
+      });
 
-      // LearningState 创建/更新（BR-040：UNIQUE(userId, knowledgePointId)）
-      const learningState: LearningState = {
-        id: prevState?.id ?? idGen(),
+      // LearningState 创建/更新（BR-040：UNIQUE(userId, knowledgePointId)），唯一工厂组装
+      const learningState: LearningState = LearningStateFromDraft({
         userId: attempt.userId,
         knowledgePointId: attempt.knowledgePointId,
-        stability: next.stability,
-        difficulty: next.difficulty,
-        retrievability: next.retrievability,
-        dueAt: next.dueAt,
-        lastReviewedAt: next.lastReviewedAt,
-        reviewCount: next.reviewCount,
-        lapseCount: next.lapseCount,
-        lastRating: next.lastRating,
+        draft: next,
+        id: prevState?.id ?? idGen(),
         createdAt: prevState?.createdAt ?? reviewedAt,
         updatedAt: reviewedAt,
-      };
+      });
 
       await repos.reviewEvents.save(reviewEvent);
       await repos.learningStates.save(learningState);
@@ -166,11 +165,20 @@ export class FinalizeReview {
       // Attempt 状态机：evaluated → reviewed（BR-013）
       await repos.attempts.updateStatus(attempt.id, "reviewed");
 
-      // 更新 SessionItem → completed（如果存在且未完成）
+      // 更新 SessionItem → completed（状态机守卫：禁止 pending 直跳 completed）
       const sessionItem = await repos.sessionItems.findById(attempt.sessionItemId);
       if (sessionItem && sessionItem.status !== "completed" && sessionItem.status !== "skipped") {
+        if (!canTransitionSessionItem(sessionItem.status, "completed")) {
+          throw new InvalidStateTransitionError(
+            `SessionItem 当前状态 ${sessionItem.status}，不能直接置为 completed`
+          );
+        }
         await repos.sessionItems.save({ ...sessionItem, status: "completed" });
       }
+
+      // correctCount 读 Evaluation.isCorrect，不按评级反推（评价/评级分离，BR-022）
+      const evaluation = await repos.evaluations.findByAttemptId(attempt.id);
+      const correctDelta = evaluation?.isCorrect ? 1 : 0;
 
       // 更新 StudyDay（按用户时区）
       const localDate = await this.deps.getLocalDate(attempt.userId, reviewedAt);
@@ -181,7 +189,7 @@ export class FinalizeReview {
         localDate,
         minutes: day?.minutes ?? 0,
         attemptCount: day ? day.attemptCount + 1 : 1,
-        correctCount: day ? day.correctCount + (reviewEvent.rating === "again" ? 0 : 1) : 1,
+        correctCount: day ? day.correctCount + correctDelta : correctDelta,
         reviewCount: day ? day.reviewCount + 1 : 1,
         newCount: (day?.newCount ?? 0) + (prevState ? 0 : 1),
         completedSessionCount: day?.completedSessionCount ?? 0,

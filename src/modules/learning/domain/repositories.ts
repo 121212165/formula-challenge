@@ -25,12 +25,18 @@ export interface EvaluationRepository {
 export interface ReviewEventRepository {
   findByAttemptId(attemptId: string): Promise<ReviewEvent | null>;
   save(reviewEvent: ReviewEvent): Promise<void>;
+  /** 进度读模型：取该用户全部历史 ReviewEvent（聚合复习次数 / again 分布，Phase 7 验收 5） */
+  findAllByUser(userId: string): Promise<ReviewEvent[]>;
 }
 
 export interface LearningStateRepository {
   find(userId: string, knowledgePointId: string): Promise<LearningState | null>;
   save(state: LearningState): Promise<void>;
   findDue(userId: string, now: Date, limit: number): Promise<LearningState[]>;
+  /** 进度读模型：取该用户全部 LearningState（稳定性分布 / 薄弱项 / due 列表，Phase 7 验收 5） */
+  findAllByUser(userId: string): Promise<LearningState[]>;
+  /** 进度读模型：该用户在某科目下"已学（有 LearningState）"的 published 知识点数（BR-040） */
+  countLearnedByUserAndSubject(userId: string, subjectId: string): Promise<number>;
 }
 
 export interface StudySessionRepository {

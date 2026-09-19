@@ -128,13 +128,16 @@ model User {
   email            String   @unique
   name             String?
   timezone         String   @default("Asia/Shanghai")
+  emailVerifiedAt  DateTime?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   learningProfile  UserLearningProfile?
+  credential       Credential?
   subjectPreferences UserSubjectPreference[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
+  authSessions         AuthSession[]
 
   studySessions    StudySession[]
   attempts         Attempt[]
@@ -200,6 +203,31 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+model Credential {
+  userId       String   @id
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@map("credentials")
+}
+
+// AuthSession —— 登录会话（Phase 5）。
+// 只存 token 的 sha256 哈希（永不存明文）；expiresAt 过期；revokedAt 登出/撤销标记。
+// 与学习域的 StudySession 无关：本模型只回答"这个登录态是否有效"。
+model AuthSession {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_sessions")
+}
+
 // ==================== Content ====================
 
 model Subject {
@@ -256,7 +284,7 @@ model ContentItem {
 model FormulaContent {
   contentItemId          String  @id
   source                 String  @default("")
-  alias                  String[] @default([])
+  alias                  Json     @default("[]") // 别名列表（String[] 在 SQLite 不可用，改 Json；仓储负责 string[]<->Json 序列化）
   level                  String  @default("")
   mnemonic               String?
   mnemonicExplanation    String?
@@ -268,7 +296,7 @@ model FormulaContent {
 model HerbContent {
   contentItemId      String  @id
   source             String  @default("")
-  alias              String[] @default([])
+  alias              Json     @default("[]")
   property           String  @default("")
   meridian           String  @default("")
   usage              String  @default("")
@@ -352,6 +380,9 @@ model KnowledgePoint {
   contentItem    ContentItem         @relation(fields: [contentItemId], references: [id], onDelete: Cascade)
   learningStates LearningState[]
   questionInstances QuestionInstance[]
+  sessionItems   SessionItem[]
+  attempts       Attempt[]
+  reviewEvents   ReviewEvent[]
   planItems      StudyPlanItem[]
   issues         ContentIssue[]
 
@@ -444,6 +475,9 @@ model Attempt {
   submittedAt        DateTime      @default(now())
   timeSpentSeconds   Int           @default(0)
   status             AttemptStatus @default(submitted)
+  // 幂等键（BR-012）。@@unique([userId, clientRequestId]) 是 TOCTOU 兜底：
+  // 应用层 findByClientRequestId 与 save 之间存在并发窗口，DB 唯一约束在此兜底，
+  // 冲突时由应用层捕获 P2002 并重查返回幂等结果（created:false）。
   clientRequestId    String
 
   user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -463,6 +497,7 @@ model Attempt {
 model Evaluation {
   id         String   @id @default(cuid())
   attemptId  String   @unique
+  userId     String
   score      Float
   isCorrect  Boolean
   confidence Float    @default(0)
@@ -470,7 +505,9 @@ model Evaluation {
   createdAt  DateTime @default(now())
 
   attempt    Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("evaluations")
 }
 
@@ -505,6 +542,7 @@ model LearningState {
   reviewCount      Int          @default(0)
   lapseCount       Int          @default(0)
   lastRating       ReviewRating?
+  fsrsState        Int          @default(0) // FSRS 卡片状态机原值（New/Learning/Review/Relearning），domain LearningState.fsrsState
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -621,4 +659,23 @@ model ContentIssue {
   @@index([contentItemId, status])
   @@index([reporterId, createdAt])
   @@map("content_issues")
+}
+
+// ==================== Audit（Phase 13 生产加固）====================
+// 审计日志：记录关键安全/治理动作（登录成功/失败、Issue 审核、内容发布）。
+// actorUserId 可空（登录失败时尚无用户）；不建外键，避免登录失败 / 匿名写入受 FK 约束。
+// detail 用 Json 存上下文（如登录失败的尝试邮箱、审核 decision/versionId）。
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  targetType   String?
+  targetId     String?
+  requestId    String?
+  detail       Json
+  createdAt    DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_logs")
 }

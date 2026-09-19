@@ -53,6 +53,10 @@ export class InvalidStateTransitionError extends DomainError {
   }
 }
 
+/**
+ * 幂等场景（如 SubmitAttempt 的 clientRequestId 命中）按约定直接返回 created:false，不抛错。
+ * 此错误预留给非幂等写操作的重复请求，保留定义备用。
+ */
 export class DuplicateRequestError extends DomainError {
   readonly code = "DUPLICATE_REQUEST";
   constructor(message = "重复请求") {

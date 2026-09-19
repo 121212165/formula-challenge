@@ -40,6 +40,20 @@ export interface PasswordResetToken {
   createdAt: Date;
 }
 
+/**
+ * 登录会话（Phase 5）。
+ * tokenHash = sha256(明文会话令牌)；明文只在登录/响应时返回一次。
+ * revokedAt 非空表示已登出/撤销；expiresAt 之后不可用。
+ */
+export interface AuthSession {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  revokedAt: Date | null;
+  createdAt: Date;
+}
+
 export type LearningStage = "beginner" | "intermediate" | "advanced" | "exam";
 
 export interface UserLearningProfile {

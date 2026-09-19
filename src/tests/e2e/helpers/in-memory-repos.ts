@@ -80,6 +80,9 @@ export function createInMemoryRepos(store: InMemoryStore = createInMemoryStore()
         store.reviewEvents.set(reviewEvent.id, reviewEvent);
         store.reviewEventsByAttemptId.set(reviewEvent.attemptId, reviewEvent);
       },
+      async findAllByUser(userId) {
+        return [...store.reviewEvents.values()].filter((e) => e.userId === userId);
+      },
     },
     learningStates: {
       async find(userId, knowledgePointId) {
@@ -93,6 +96,14 @@ export function createInMemoryRepos(store: InMemoryStore = createInMemoryStore()
           .filter((s) => s.userId === userId && s.dueAt <= now)
           .sort((a, b) => a.dueAt.getTime() - b.dueAt.getTime())
           .slice(0, limit);
+      },
+      async findAllByUser(userId) {
+        return [...store.learningStates.values()].filter((s) => s.userId === userId);
+      },
+      // 内存 fake 不建模 ContentItem→Subject 关系：subjectId 在 fake 中不参与过滤，
+      // 仅按 userId 统计（subject 维度的精确计数由 Prisma 集成测试覆盖）。
+      async countLearnedByUserAndSubject(userId, _subjectId) {
+        return [...store.learningStates.values()].filter((s) => s.userId === userId).length;
       },
     },
     sessions: {

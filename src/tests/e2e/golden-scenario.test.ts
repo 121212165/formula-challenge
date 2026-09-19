@@ -34,7 +34,8 @@ async function seedEvaluatedAttempt(
   store: InMemoryStore,
   repos: ReturnType<typeof createInMemoryRepos>,
   attemptId = "attempt-001",
-  status: Attempt["status"] = "evaluated"
+  status: Attempt["status"] = "evaluated",
+  evalOpts: { isCorrect?: boolean; score?: number } = {}
 ): Promise<void> {
   const now = new Date("2026-09-17T08:00:00.000Z");
   const session: StudySession = {
@@ -72,8 +73,8 @@ async function seedEvaluatedAttempt(
   const evaluation: Evaluation = {
     id: "evaluation-001",
     attemptId: attempt.id,
-    score: 0.9,
-    isCorrect: true,
+    score: evalOpts.score ?? 0.9,
+    isCorrect: evalOpts.isCorrect ?? true,
     confidence: 0.8,
     feedback: null,
     createdAt: now,
@@ -174,12 +175,44 @@ describe("黄金测试：第一次学习 + 重复评级（架构文档 §66）",
     expect(store.attempts.get("attempt-001")?.status).toBe("reviewed");
   });
 
-  it("StudyDay 按用户时区累计（BR-070/071）", async () => {
+  it("StudyDay 按用户时区累计（BR-070/072）", async () => {
     await finalizeReview.execute({ attemptId: "attempt-001", rating: "good" });
     const day = await repos.studyDays.find(USER_ID, LOCAL_DATE);
     expect(day).not.toBeNull();
     expect(day?.attemptCount).toBe(1);
     expect(day?.reviewCount).toBe(1);
     expect(day?.correctCount).toBe(1);
+  });
+
+  it("答错但用户选 Good（BR-022 评价/评级分离）：FSRS 仍正常推进，但 correctCount 不增加", async () => {
+    // 系统判定答错（isCorrect=false, score=0.2），但学习者主观回忆评级选 Good。
+    await seedEvaluatedAttempt(store, repos, "attempt-003", "evaluated", {
+      isCorrect: false,
+      score: 0.2,
+    });
+
+    const result = await finalizeReview.execute({ attemptId: "attempt-003", rating: "good" });
+
+    // (a) 评级独立工作：Good 仍按 FSRS 正常推进，reviewEvent 正常创建
+    expect(result.created).toBe(true);
+    expect(result.reviewEvent.rating).toBe("good");
+    expect(result.learningState.reviewCount).toBe(1);
+    expect(result.learningState.lastRating).toBe("good");
+    expect(result.learningState.dueAt.getTime()).toBeGreaterThan(reviewAt.getTime());
+
+    // (b) correctCount 读 isCorrect 而非 rating：答错 → 即使评 Good 也不累计正确数
+    const day = await repos.studyDays.find(USER_ID, LOCAL_DATE);
+    expect(day).not.toBeNull();
+    expect(day?.correctCount).toBe(0);
+    // 本次仍算一次 attempt 与一次 review（只是不计正确）
+    expect(day?.attemptCount).toBe(1);
+    expect(day?.reviewCount).toBe(1);
+
+    // (c) 系统对错判定不被评级改写：原始 Evaluation 仍为答错，未被 review 路径翻转
+    const ev = await repos.evaluations.findByAttemptId("attempt-003");
+    expect(ev?.isCorrect).toBe(false);
+    expect(ev?.score).toBe(0.2);
+    // LearningState 本身不含对错字段（评价/评级分离），只有记忆评级
+    expect((result.learningState as unknown as Record<string, unknown>).isCorrect).toBeUndefined();
   });
 });

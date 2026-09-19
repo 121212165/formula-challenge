@@ -5,11 +5,15 @@
 
 import { createHash } from "node:crypto";
 import { NotFoundError, ValidationError } from "@/shared/errors";
+import type { UnitOfWork } from "@/shared/domain/unit-of-work";
 import type { User } from "../domain/user";
 import type { IdentityRepositories } from "../domain/repositories";
 
 export interface VerifyEmailDeps {
   repos: IdentityRepositories;
+  uow: UnitOfWork;
+  /** 可注入时钟（测试用），与其它用例保持一致；缺省取真实当前时间 */
+  now?: () => Date;
 }
 
 export interface VerifyEmailCommand {
@@ -24,7 +28,8 @@ export class VerifyEmail {
   constructor(private readonly deps: VerifyEmailDeps) {}
 
   async execute(cmd: VerifyEmailCommand): Promise<VerifyEmailResult> {
-    const { repos } = this.deps;
+    const { repos, uow } = this.deps;
+    const now = this.deps.now ?? (() => new Date());
     const tokenHash = createHash("sha256").update(cmd.token).digest("hex");
 
     const token = await repos.tokens.findVerificationToken(tokenHash);
@@ -34,7 +39,7 @@ export class VerifyEmail {
     if (token.usedAt) {
       throw new ValidationError("验证令牌已使用");
     }
-    if (token.expiresAt.getTime() < Date.now()) {
+    if (token.expiresAt.getTime() < now().getTime()) {
       throw new ValidationError("验证令牌已过期");
     }
 
@@ -43,10 +48,13 @@ export class VerifyEmail {
       throw new NotFoundError("用户不存在");
     }
 
-    const now = new Date();
-    await repos.tokens.saveVerificationToken({ ...token, usedAt: now });
-    await repos.users.save({ ...user, emailVerifiedAt: now, updatedAt: now });
+    const stamp = now();
+    // token 标记 + user 邮箱验证标记必须同事务，避免半成功（BR-071）
+    await uow.transaction(async () => {
+      await repos.tokens.saveVerificationToken({ ...token, usedAt: stamp });
+      await repos.users.save({ ...user, emailVerifiedAt: stamp, updatedAt: stamp });
+    });
 
-    return { user: { ...user, emailVerifiedAt: now, updatedAt: now } };
+    return { user: { ...user, emailVerifiedAt: stamp, updatedAt: stamp } };
   }
 }
