@@ -20,8 +20,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /** 把同一个 Web Request 交给后端 ApiRouter 分发。 */
-function dispatch(req: Request): Promise<Response> {
-  return getServerRouter().dispatch(req);
+async function dispatch(req: Request): Promise<Response> {
+  return (await getServerRouter()).dispatch(req);
 }
 
 export async function GET(req: Request): Promise<Response> {

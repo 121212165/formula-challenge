@@ -154,3 +154,4 @@
 4. **health 的 db-down 503 路径**：代码已实现（`pingDb` 抛错 → 503），但自动测试是基于健康库断言 db up；db-down 分支靠代码路径保证，未做"杀掉连接再测"的破坏性自动化。
 5. **注册（REGISTER）未单独记审计动作**：审计动作集合按规格给定为 LOGIN_* / ISSUE_REVIEW / CONTENT_PUBLISH / CONTENT_ARCHIVE；注册成功仅做结构化日志（含 userId），未写 AuditLog 行，如需注册留痕可后续补 `USER_REGISTERED` 动作。
 6. Phase 11（AI）按计划跳过，本期不涉及。
+7. **测试 flaky 与超时**：默认限流 20/60s 会在同一测试文件累计请求后误杀既有集成测试 → 已在 vitest `setupFiles` 把测试环境 `RATE_LIMIT_MAX` 放宽到 1000000（生产仍 20）。此外 Phase 13 生产包装层给每个请求增加了 ALS/结构化日志/审计写库开销，重型 node:http 全闭环用例在背靠背高负载下贴近原默认 5s 超时线，集体偶发超时（不止单条慢）→ 已在 `vitest.config.ts` 全局把 `testTimeout` 提到 **20000ms**；并保留 `mvp-e2e-loop` / `get-user-progress` 两条 `it` 的 30000ms（更高者生效，不冲突）。包装层自查：非关键端点不做多余 JSON 序列化，日志仅在关键端点调用，无需进一步优化。
